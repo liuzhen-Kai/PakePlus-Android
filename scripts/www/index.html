@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>胶体性质3D微观可视化教学系统 - 完整整合版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="h-full text-slate-100 flex flex-col antialiased">
+
+    <header class="h-14 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between px-6 z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30">胶</div>
+            <h1 class="text-lg font-bold tracking-wide bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+                胶体性质 3D 微观可视化教学系统
+            </h1>
+            <span class="text-xs px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-800/50">完整整合版</span>
+        </div>
+        <div class="text-xs text-slate-400 flex items-center space-x-4">
+            <span>拖拽旋转 | 滚轮缩放 | 右键平移</span>
+            <button onclick="resetCamera()" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition border border-slate-700">重置视角</button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden relative">
+        <!-- 隐藏式左侧导航栏 -->
+        <aside id="nav-sidebar" class="absolute top-0 left-0 h-full w-64 bg-slate-900/90 border-r border-slate-700/50 shadow-2xl z-30 transform transition-transform duration-300 flex flex-col glass-panel translate-x-0">
+            <div class="p-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-900/80">
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">选择演示主题</h2>
+                <button onclick="toggleNavPanel()" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition">✕ 关闭</button>
+            </div>
+            <nav class="flex-1 p-3 space-y-2 overflow-y-auto" id="nav-menu">
+                <button onclick="switchMode('filtration')" id="nav-filtration" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
+                    <span class="w-2 h-2 rounded-full bg-indigo-300"></span>
+                    <span>1. 渗析与过滤 (孔径)</span>
+                </button>
+                <button onclick="switchMode('metastability')" id="nav-metastability" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span>2. 介稳性 (双电层)</span>
+                </button>
+                <button onclick="switchMode('electrophoresis')" id="nav-electrophoresis" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                    <span>3. 电泳现象 (定向移动)</span>
+                </button>
+                <button onclick="switchMode('tyndall')" id="nav-tyndall" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                    <span>4. 丁达尔效应 (光散射)</span>
+                </button>
+                <button onclick="switchMode('coagulation')" id="nav-coagulation" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                    <span>5. 胶体聚沉 (团聚沉降)</span>
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-700/50 bg-slate-950/60 text-xs space-y-2" id="legend-panel"></div>
+        </aside>
+
+        <!-- 导航侧边栏切换按钮 -->
+        <button id="toggle-nav-btn" onclick="toggleNavPanel()" class="absolute top-6 left-64 bg-slate-800/90 hover:bg-slate-700 text-slate-300 py-3 px-2 rounded-r-lg shadow-[0_0_15px_rgba(0,0,0,0.5)] backdrop-blur-md z-20 flex flex-col items-center justify-center transition-all duration-300 border border-l-0 border-slate-600">
+            <span class="text-xs font-bold" style="writing-mode: vertical-lr; letter-spacing: 2px;">☰ 主题列表</span>
+        </button>
+
+        <!-- 3D渲染容器与悬浮面板 -->
+        <main class="flex-1 relative bg-slate-950 w-full" id="canvas-container">
+            
+            <!-- 隐藏式原理说明侧边栏 -->
+            <div id="info-sidebar" class="absolute top-0 right-0 h-full w-80 glass-panel border-l border-slate-700/50 shadow-2xl z-30 transform translate-x-full transition-transform duration-300 flex flex-col">
+                <div class="p-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-900/80">
+                    <h3 class="font-bold text-base text-indigo-300" id="info-title">加载中...</h3>
+                    <button onclick="toggleInfoPanel()" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition">✕ 关闭</button>
+                </div>
+                <div class="p-4 flex-1 overflow-y-auto text-sm text-slate-300 leading-relaxed space-y-3" id="info-content"></div>
+            </div>
+
+            <!-- 原理说明切换按钮 -->
+            <button id="toggle-info-btn" onclick="toggleInfoPanel()" class="absolute top-6 right-0 bg-indigo-600/80 hover:bg-indigo-500 text-white py-3 px-2 rounded-l-lg shadow-[0_0_15px_rgba(79,70,229,0.3)] backdrop-blur-md z-20 flex flex-col items-center justify-center transition-transform hover:-translate-x-1 border border-r-0 border-indigo-400/50">
+                <span class="text-xs font-bold" style="writing-mode: vertical-lr; letter-spacing: 2px;">📄 原理说明</span>
+            </button>
+
+            <!-- 底部居中紧凑型控制台 -->
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 glass-panel rounded-2xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-10 pointer-events-auto border border-slate-700/80" id="controls-panel"></div>
+            
+        </main>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls, animationFrameId;
+        let currentMode = 'filtration';
+        let activeParticles = [];
+        let extraObjects = {};
+
+        const COLORS = {
+            suspension: 0xd97757,
+            colloid: 0x10b981,
+            ion: 0x3b82f6,
+            feoh3: 0xb91c1c, // 统一胶体颜色
+            electrolyteNeg: 0x38bdf8
+        };
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0f1d);
+            scene.fog = new THREE.FogExp2(0x0a0f1d, 0.015);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // 引入 OrbitControls 替代简单的鼠标控制，体验更好
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(20, 40, 20);
+            scene.add(dirLight);
+
+            window.addEventListener('resize', onWindowResize);
+
+            switchMode('filtration');
+            animate();
+        }
+
+        function clearScene() {
+            const objectsToRemove = [];
+            scene.children.forEach((child) => {
+                if (!child.isLight && !child.isCamera) {
+                    objectsToRemove.push(child);
+                }
+            });
+
+            objectsToRemove.forEach(obj => {
+                scene.remove(obj);
+                obj.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material.dispose();
+                    }
+                });
+            });
+
+            activeParticles = [];
+            extraObjects = {};
+            if(controls) controls.target.set(0,0,0);
+        }
+
+        function createStructureTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 1024, 1024);
+            const surfaceGrad = ctx.createRadialGradient(512, 512, 100, 512, 512, 720);
+            surfaceGrad.addColorStop(0, 'rgba(30, 41, 59, 0.95)');
+            surfaceGrad.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
+            ctx.fillStyle = surfaceGrad;
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            if (type === 'paper') {
+                const spacing = 150; const radius = 60;
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)'; ctx.lineWidth = 4;
+                for (let i = 0; i < 200; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random() * 1024, Math.random() * 1024);
+                    ctx.lineTo(Math.random() * 1024, Math.random() * 1024);
+                    ctx.stroke();
+                }
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.9)'; ctx.shadowBlur = 12; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 5;
+
+                for (let x = 62; x < 1024; x += spacing) {
+                    for (let y = 62; y < 1024; y += spacing) {
+                        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+                        ctx.fillStyle = '#0a0f1d'; ctx.fill();
+                        ctx.shadowColor = 'transparent'; ctx.strokeStyle = 'rgba(129, 140, 248, 0.5)'; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+                    }
+                }
+                ctx.beginPath(); ctx.arc(512, 512, radius, 0, Math.PI * 2); ctx.fillStyle = '#0a0f1d'; ctx.fill();
+                ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 4; ctx.stroke();
+
+                drawPoreAnnotation(ctx, 512, 512, radius, '100 nm', '#818cf8');
+                drawTitle(ctx, '滤 纸 微 观 结 构');
+
+            } else if (type === 'membrane') {
+                const spacing = 35; const radius = 8;
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.05)'; ctx.fillRect(0, 0, 1024, 1024);
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'; ctx.shadowBlur = 2;
+
+                for (let x = 17; x < 1024; x += spacing) {
+                    for (let y = 17; y < 1024; y += spacing) {
+                        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fillStyle = '#0a0f1d'; ctx.fill();
+                        ctx.shadowColor = 'transparent'; ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)'; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                    }
+                }
+                ctx.beginPath(); ctx.arc(512, 512, radius * 3, 0, Math.PI * 2); ctx.fillStyle = '#0a0f1d'; ctx.fill();
+                ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+
+                drawPoreAnnotation(ctx, 512, 512, radius * 3, '1 nm (孔径)', '#38bdf8');
+                drawTitle(ctx, '半 透 膜 微 观 结 构');
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function drawPoreAnnotation(ctx, x, y, radius, text, color) {
+            ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
+            ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(x - radius - 20, y); ctx.lineTo(x + radius + 20, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x - radius, y); ctx.lineTo(x - radius - 15, y - 8); ctx.lineTo(x - radius - 15, y + 8); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x + radius, y); ctx.lineTo(x + radius + 15, y - 8); ctx.lineTo(x + radius + 15, y + 8); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x - radius, y - 25); ctx.lineTo(x - radius, y + 25); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + radius, y - 25); ctx.lineTo(x + radius, y + 25); ctx.stroke();
+            ctx.font = 'bold 38px "Inter", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+            ctx.fillText(text, x, y - 15); ctx.shadowColor = 'transparent';
+        }
+
+        function drawTitle(ctx, text) {
+            ctx.font = 'bold 48px "SimHei", sans-serif'; ctx.fillStyle = '#f8fafc'; ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 10; ctx.fillText(text, 512, 950); ctx.shadowColor = 'transparent';
+        }
+
+        function createLabelSprite(text, color = '#ffffff', posY = 0, posZ = 0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 128;
+            const context = canvas.getContext('2d');
+            context.font = 'Bold 36px "Inter", sans-serif';
+            context.fillStyle = color; context.textAlign = 'center'; context.textBaseline = 'middle';
+            context.shadowColor = 'rgba(0,0,0,1)'; context.shadowBlur = 4; context.lineWidth = 5; context.strokeStyle = '#000000';
+            context.strokeText(text, 256, 64); context.fillText(text, 256, 64);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+            sprite.scale.set(10, 2.5, 1); sprite.position.set(0, posY + 1.5, posZ);
+            return sprite;
+        }
+
+        function createChargeSprite(text, colorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = colorHex; ctx.font = 'bold 48px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 32, 36);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(1.5, 1.5, 1); // 放大一点
+            sprite.position.set(1, 1, 0); 
+            return sprite;
+        }
+
+        function createWavyLine(length, color, waveAmp = 0.4, waveFreq = 2.0) {
+            const pts = [];
+            for (let x = 0; x <= length; x += 0.15) pts.push(new THREE.Vector3(x, 0, 0));
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.8 });
+            const line = new THREE.Line(geo, mat);
+            if (!extraObjects.wavyLines) extraObjects.wavyLines = [];
+            extraObjects.wavyLines.push({ line, amp: waveAmp, freq: waveFreq, basePts: pts });
+            return line;
+        }
+
+        function buildFiltrationScene() {
+            camera.position.set(0, 6, 35);
+
+            extraObjects.experimentGroup = new THREE.Group();
+            scene.add(extraObjects.experimentGroup);
+
+            const boxGeo = new THREE.BoxGeometry(16, 26, 16);
+            const boxEdges = new THREE.EdgesGeometry(boxGeo);
+            const boxMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.6 });
+            const box = new THREE.LineSegments(boxEdges, boxMat);
+            extraObjects.experimentGroup.add(box);
+
+            const planeGeo = new THREE.PlaneGeometry(15.8, 15.8);
+
+            const paperMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+            const filterPaper = new THREE.Mesh(planeGeo, paperMat);
+            filterPaper.rotation.x = -Math.PI / 2; filterPaper.position.y = 4;
+            const gridPaper = new THREE.GridHelper(15.8, 8, 0xffffff, 0x94a3b8);
+            gridPaper.position.y = 4.01;
+            extraObjects.experimentGroup.add(filterPaper); extraObjects.experimentGroup.add(gridPaper);
+
+            const membraneMat = new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+            const semiMembrane = new THREE.Mesh(planeGeo, membraneMat);
+            semiMembrane.rotation.x = -Math.PI / 2; semiMembrane.position.y = -4;
+            const gridMembrane = new THREE.GridHelper(15.8, 32, 0x60a5fa, 0x3b82f6);
+            gridMembrane.position.y = -3.99;
+            extraObjects.experimentGroup.add(semiMembrane); extraObjects.experimentGroup.add(gridMembrane);
+
+            extraObjects.experimentGroup.add(createLabelSprite('滤纸层', '#ffffff', 4, 7.9));
+            extraObjects.experimentGroup.add(createLabelSprite('半透膜层', '#93c5fd', -4, 7.9));
+
+            const types = [
+                { type: 'suspension', radius: 1.2, color: COLORS.suspension, count: 12 },
+                { type: 'colloid', radius: 0.5, color: COLORS.colloid, count: 25 },
+                { type: 'ion', radius: 0.2, color: COLORS.ion, count: 40 }
+            ];
+            const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
+            types.forEach(t => {
+                const mat = new THREE.MeshPhongMaterial({ color: t.color, shininess: 60 });
+                for (let i = 0; i < t.count; i++) {
+                    const mesh = new THREE.Mesh(sphereGeo, mat);
+                    mesh.scale.set(t.radius, t.radius, t.radius);
+                    extraObjects.experimentGroup.add(mesh);
+                    activeParticles.push({ mesh: mesh, type: t.type, speed: 0.05 + Math.random() * 0.05, radius: t.radius });
+                }
+            });
+            resetParticles();
+
+            const viewGeo = new THREE.PlaneGeometry(24, 24);
+            const paperTexMat = new THREE.MeshBasicMaterial({ map: createStructureTexture('paper'), transparent: true, opacity: 0.95 });
+            extraObjects.paperView = new THREE.Mesh(viewGeo, paperTexMat); extraObjects.paperView.visible = false;
+            scene.add(extraObjects.paperView);
+
+            const membraneTexMat = new THREE.MeshBasicMaterial({ map: createStructureTexture('membrane'), transparent: true, opacity: 0.95 });
+            extraObjects.membraneView = new THREE.Mesh(viewGeo, membraneTexMat); extraObjects.membraneView.visible = false;
+            scene.add(extraObjects.membraneView);
+
+            extraObjects.currentView = 'experiment';
+        }
+
+        window.setFiltrationView = function(view) {
+            extraObjects.currentView = view;
+            const btnIds = ['btn-exp', 'btn-paper', 'btn-membrane'];
+            btnIds.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+            });
+
+            const activeBtn = document.getElementById(view === 'experiment' ? 'btn-exp' : (view === 'paper' ? 'btn-paper' : 'btn-membrane'));
+            if (activeBtn) activeBtn.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-indigo-400 bg-indigo-600 text-white font-bold whitespace-nowrap";
+
+            if (view === 'experiment') {
+                extraObjects.experimentGroup.visible = true; extraObjects.paperView.visible = false; extraObjects.membraneView.visible = false;
+                camera.position.set(0, 6, 35); controls.target.set(0,0,0); resetParticles();
+            } else if (view === 'paper') {
+                extraObjects.experimentGroup.visible = false; extraObjects.paperView.visible = true; extraObjects.membraneView.visible = false;
+                camera.position.set(0, 0, 24); controls.target.set(0,0,0);
+            } else if (view === 'membrane') {
+                extraObjects.experimentGroup.visible = false; extraObjects.paperView.visible = false; extraObjects.membraneView.visible = true;
+                camera.position.set(0, 0, 24); controls.target.set(0,0,0);
+            }
+        };
+
+        window.resetParticles = function() {
+            if (extraObjects.currentView !== 'experiment') return;
+            activeParticles.forEach(p => {
+                p.mesh.position.set((Math.random() - 0.5) * 14, 14 + Math.random() * 10, (Math.random() - 0.5) * 14);
+            });
+        };
+
+        window.setMetaState = function(state) {
+            extraObjects.metaState = state;
+            const btns = ['normal', 'repulsion', 'brownian'];
+            btns.forEach(b => {
+                const btn = document.getElementById('btn-meta-' + b);
+                if (btn) {
+                    if (b === state) {
+                        btn.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-amber-400 bg-amber-600 text-white font-bold whitespace-nowrap";
+                    } else {
+                        btn.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+                    }
+                }
+            });
+            clearScene();
+            // 【核心修复】：clearScene 会清空 extraObjects，必须在清空后重新赋值当前状态，否则永远都会加载默认的35个粒子！
+            extraObjects.metaState = state; 
+            buildMetastabilityScene();
+        };
+
+        function buildMetastabilityScene() {
+            if(!extraObjects.metaState) extraObjects.metaState = 'normal';
+            camera.position.set(0, 0, 28);
+            controls.target.set(0,0,0);
+            
+            // 外框球体限制容器
+            const containerGeo = new THREE.SphereGeometry(12, 32, 32);
+            const containerMat = new THREE.MeshBasicMaterial({ color: 0x334155, wireframe: true, transparent: true, opacity: 0.15 });
+            scene.add(new THREE.Mesh(containerGeo, containerMat));
+
+            const state = extraObjects.metaState;
+            const colloidMat = new THREE.MeshPhongMaterial({ color: COLORS.feoh3, shininess: 80 });
+            
+            if (state === 'repulsion') {
+                // 孤立演示：静电排斥 (两个粒子互撞)
+                const sphereGeo = new THREE.SphereGeometry(1.8, 32, 32);
+                const haloGeo = new THREE.SphereGeometry(3.6, 32, 32);
+                const haloMat = new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.2, side: THREE.BackSide, depthWrite: false });
+
+                for(let i=0; i<2; i++) {
+                    const mesh = new THREE.Mesh(sphereGeo, colloidMat);
+                    mesh.position.set(i===0 ? -9 : 9, 0, 0); 
+                    const halo = new THREE.Mesh(haloGeo, haloMat.clone());
+                    mesh.add(halo);
+                    const chargeSprite = createChargeSprite('+', '#fde047');
+                    chargeSprite.scale.set(2, 2, 1);
+                    mesh.add(chargeSprite);
+                    scene.add(mesh);
+                    activeParticles.push({
+                        mesh: mesh, halo: halo,
+                        velocity: new THREE.Vector3(i===0 ? 0.08 : -0.08, 0, 0)
+                    });
+                }
+                
+                const lineGeo = new THREE.BufferGeometry();
+                lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+                const lineMat = new THREE.LineBasicMaterial({ color: 0xfde047, transparent: true, opacity: 1, linewidth: 4 });
+                extraObjects.repulsionLines = new THREE.LineSegments(lineGeo, lineMat);
+                scene.add(extraObjects.repulsionLines);
+            } 
+            else if (state === 'brownian') {
+                // 孤立演示：布朗运动 (仅两个粒子，高无规则运动，无双电层)
+                const sphereGeo = new THREE.SphereGeometry(0.6, 16, 16);
+                for (let i = 0; i < 2; i++) {
+                    const mesh = new THREE.Mesh(sphereGeo, colloidMat);
+                    // 左右分开布置，方便清晰观察
+                    mesh.position.set(i === 0 ? -5 : 5, 0, 0);
+                    scene.add(mesh);
+                    activeParticles.push({
+                        mesh: mesh,
+                        velocity: new THREE.Vector3((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3)
+                    });
+                }
+            } 
+            else {
+                // 综合态演示 (默认)
+                const sphereGeo = new THREE.SphereGeometry(0.8, 16, 16);
+                const haloGeo = new THREE.SphereGeometry(1.6, 16, 16);
+                const haloMat = new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.15, side: THREE.BackSide, depthWrite: false });
+
+                for (let i = 0; i < 35; i++) {
+                    const mesh = new THREE.Mesh(sphereGeo, colloidMat);
+                    mesh.position.set((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16);
+                    
+                    const halo = new THREE.Mesh(haloGeo, haloMat.clone()); 
+                    mesh.add(halo); 
+                    mesh.add(createChargeSprite('+', '#fde047'));
+                    
+                    scene.add(mesh);
+                    activeParticles.push({
+                        mesh: mesh, halo: halo,
+                        velocity: new THREE.Vector3((Math.random()-0.5)*0.15, (Math.random()-0.5)*0.15, (Math.random()-0.5)*0.15)
+                    });
+                }
+
+                const maxLines = 150;
+                const lineGeo = new THREE.BufferGeometry();
+                lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxLines * 6), 3));
+                const lineMat = new THREE.LineBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.9, linewidth: 2 });
+                extraObjects.repulsionLines = new THREE.LineSegments(lineGeo, lineMat);
+                scene.add(extraObjects.repulsionLines);
+            }
+        }
+
+        function buildElectrophoresisScene() {
+            camera.position.set(0, 0, 35);
+            controls.target.set(0,0,0);
+            
+            extraObjects.powerOn = false;
+            extraObjects.epView = 'macro';
+            extraObjects.powerRatio = 0;
+
+            extraObjects.epMacroGroup = new THREE.Group();
+            extraObjects.epMicroGroup = new THREE.Group();
+            extraObjects.epMicroGroup.visible = false;
+            scene.add(extraObjects.epMacroGroup);
+            scene.add(extraObjects.epMicroGroup);
+
+            // 宏观场景
+            const tankGeo = new THREE.BoxGeometry(26, 12, 8);
+            const tankEdges = new THREE.LineSegments(new THREE.EdgesGeometry(tankGeo), new THREE.LineBasicMaterial({color: 0x475569}));
+            extraObjects.epMacroGroup.add(tankEdges);
+
+            const fluidGeo = new THREE.BoxGeometry(25.8, 11.8, 7.8);
+            const count = fluidGeo.attributes.position.count;
+            fluidGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+            for(let i=0; i<count; i++) fluidGeo.attributes.color.setXYZ(i, 0.6, 0.2, 0.0); // 初始颜色
+            extraObjects.epFluidGeo = fluidGeo;
+            const fluidMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7 });
+            extraObjects.epMacroGroup.add(new THREE.Mesh(fluidGeo, fluidMat));
+
+            const elGeo = new THREE.CylinderGeometry(0.3, 0.3, 14, 16);
+            const anode = new THREE.Mesh(elGeo, new THREE.MeshPhongMaterial({ color: 0xef4444 }));
+            anode.position.set(-11, 2, 0); extraObjects.epMacroGroup.add(anode);
+            const anodeLabel = createLabelSprite('阳极 (+)', '#ef4444'); anodeLabel.position.set(-11, 10, 0);
+            extraObjects.epMacroGroup.add(anodeLabel);
+
+            const cathode = new THREE.Mesh(elGeo, new THREE.MeshPhongMaterial({ color: 0x3b82f6 }));
+            cathode.position.set(11, 2, 0); extraObjects.epMacroGroup.add(cathode);
+            const cathodeLabel = createLabelSprite('阴极 (-)', '#60a5fa'); cathodeLabel.position.set(11, 10, 0);
+            extraObjects.epMacroGroup.add(cathodeLabel);
+
+            // 微观场景
+            const plateGeo = new THREE.BoxGeometry(0.8, 12, 6);
+            const anodeMi = new THREE.Mesh(plateGeo, new THREE.MeshPhongMaterial({ color: 0xef4444 }));
+            anodeMi.position.set(-13, 0, 0); extraObjects.epMicroGroup.add(anodeMi);
+            const anodeMiLabel = createLabelSprite('阳极 (+)', '#ef4444'); anodeMiLabel.position.set(-13, 8, 0);
+            extraObjects.epMicroGroup.add(anodeMiLabel);
+
+            const cathodeMi = new THREE.Mesh(plateGeo, new THREE.MeshPhongMaterial({ color: 0x3b82f6 }));
+            cathodeMi.position.set(13, 0, 0); extraObjects.epMicroGroup.add(cathodeMi);
+            const cathodeMiLabel = createLabelSprite('阴极 (-)', '#60a5fa'); cathodeMiLabel.position.set(13, 8, 0);
+            extraObjects.epMicroGroup.add(cathodeMiLabel);
+
+            const colloidMat = new THREE.MeshPhongMaterial({ color: COLORS.feoh3 });
+            const neutralMat = new THREE.MeshPhongMaterial({ color: 0x64748b });
+
+            for (let i = 0; i < 40; i++) {
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), colloidMat);
+                mesh.position.set((Math.random() - 0.5) * 24, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 4);
+                mesh.add(createChargeSprite('+', '#fde047'));
+                extraObjects.epMicroGroup.add(mesh);
+                activeParticles.push({ mesh: mesh, isCharged: true, baseVx: (Math.random() - 0.5) * 0.06, baseVy: (Math.random() - 0.5) * 0.06 });
+            }
+            for (let i = 0; i < 30; i++) {
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), neutralMat);
+                mesh.position.set((Math.random() - 0.5) * 24, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 4);
+                extraObjects.epMicroGroup.add(mesh);
+                activeParticles.push({ mesh: mesh, isCharged: false, baseVx: (Math.random() - 0.5) * 0.1, baseVy: (Math.random() - 0.5) * 0.1 });
+            }
+        }
+
+        window.setEpView = function(view) {
+            extraObjects.epView = view;
+            const btnMacro = document.getElementById('btn-ep-macro');
+            const btnMicro = document.getElementById('btn-ep-micro');
+            if (view === 'macro') {
+                extraObjects.epMacroGroup.visible = true; extraObjects.epMicroGroup.visible = false;
+                btnMacro.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-blue-400 bg-blue-600 text-white font-bold whitespace-nowrap";
+                btnMicro.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+            } else {
+                extraObjects.epMacroGroup.visible = false; extraObjects.epMicroGroup.visible = true;
+                btnMicro.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-blue-400 bg-blue-600 text-white font-bold whitespace-nowrap";
+                btnMacro.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+            }
+        }
+
+        window.toggleElectrophoresisPower = function() {
+            extraObjects.powerOn = !extraObjects.powerOn;
+            const btn = document.getElementById('btn-power');
+            if (extraObjects.powerOn) {
+                btn.innerText = "⚡ 电源: ON (胶粒定向移动)";
+                btn.className = "px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition shadow-[0_0_8px_rgba(37,99,235,0.5)] whitespace-nowrap";
+            } else {
+                btn.innerText = "⚡ 电源: OFF";
+                btn.className = "px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] transition border border-slate-500 whitespace-nowrap";
+            }
+        }
+
+        function buildTyndallScene() {
+            camera.position.set(0, 2, 30);
+            controls.target.set(0,0,0);
+            extraObjects.tyndallView = 'macro';
+            extraObjects.laserOn = true;
+
+            extraObjects.macroGroup = new THREE.Group();
+            scene.add(extraObjects.macroGroup);
+
+            const cuvetteGeo = new THREE.BoxGeometry(9, 12, 9);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x475569 });
+
+            const leftCuvette = new THREE.LineSegments(new THREE.EdgesGeometry(cuvetteGeo), lineMat);
+            leftCuvette.position.set(-6, 0, 0);
+            extraObjects.macroGroup.add(leftCuvette);
+            
+            const labelSol = createLabelSprite('溶液 (无丁达尔效应)', '#93c5fd', 7, 0);
+            labelSol.position.set(-6, 7, 0);
+            extraObjects.macroGroup.add(labelSol);
+
+            const rightCuvette = new THREE.LineSegments(new THREE.EdgesGeometry(cuvetteGeo), lineMat);
+            rightCuvette.position.set(6, 0, 0);
+            extraObjects.macroGroup.add(rightCuvette);
+            
+            const labelCol = createLabelSprite('Fe(OH)₃ 胶体 (光亮通路)', '#fca5a5', 7, 0);
+            labelCol.position.set(6, 7, 0);
+            extraObjects.macroGroup.add(labelCol);
+
+            const beamMat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending });
+            extraObjects.colloidBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 9, 16), beamMat);
+            extraObjects.colloidBeam.rotation.z = Math.PI / 2; extraObjects.colloidBeam.position.set(6, 0, 0);
+            extraObjects.macroGroup.add(extraObjects.colloidBeam);
+
+            const pointer = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 1.5), new THREE.MeshBasicMaterial({ color: 0x333333 }));
+            pointer.position.set(-13, 0, 0); extraObjects.macroGroup.add(pointer);
+            
+            const labelPointer = createLabelSprite('激光笔', '#ffffff', 2, 0);
+            labelPointer.position.set(-13, 2, 0);
+            extraObjects.macroGroup.add(labelPointer);
+
+            // 微观组
+            extraObjects.microGroup = new THREE.Group();
+            extraObjects.microGroup.visible = false;
+            scene.add(extraObjects.microGroup);
+            extraObjects.wavyLines = [];
+            const lightColor = 0x22c55e;
+
+            // 溶液层
+            const solY = 9;
+            const solLine = createWavyLine(26, lightColor); solLine.position.set(-15, solY, 0); extraObjects.microGroup.add(solLine);
+            const solParticle = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), new THREE.MeshPhongMaterial({ color: 0x64748b }));
+            solParticle.position.set(4, solY, 0); extraObjects.microGroup.add(solParticle);
+            
+            const labelSolMicro = createLabelSprite('溶液 (<1 nm)   光线穿透', '#93c5fd', solY, 0);
+            labelSolMicro.position.set(13, solY, 0);
+            extraObjects.microGroup.add(labelSolMicro);
+
+            // 胶体层
+            const colY = 0;
+            const colLine = createWavyLine(15, lightColor); colLine.position.set(-15, colY, 0); extraObjects.microGroup.add(colLine);
+            const cluster = new THREE.Group();
+            const pMat = new THREE.MeshPhongMaterial({ color: 0x64748b });
+            cluster.add(new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), pMat));
+            for (let i = 0; i < 6; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), pMat);
+                p.position.set(Math.cos(i * Math.PI / 3) * 1.0, Math.sin(i * Math.PI / 3) * 1.0, 0);
+                cluster.add(p);
+            }
+            cluster.position.set(0, colY, 0); extraObjects.microGroup.add(cluster);
+
+            for (let i = 0; i < 8; i++) {
+                const scatLine = createWavyLine(3.5, lightColor, 0.2, 3.0);
+                const wrapper = new THREE.Group(); wrapper.rotation.z = (Math.PI * 2 / 8) * i; wrapper.position.set(0, colY, 0);
+                wrapper.add(scatLine);
+                const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 8), new THREE.MeshBasicMaterial({ color: lightColor }));
+                head.rotation.z = -Math.PI / 2; head.position.set(3.5, 0, 0); wrapper.add(head);
+                extraObjects.microGroup.add(wrapper);
+            }
+            
+            const labelColMicro = createLabelSprite('胶体 (1~100 nm)   光线散射', '#fca5a5', colY, 0);
+            labelColMicro.position.set(13, colY, 0);
+            extraObjects.microGroup.add(labelColMicro);
+
+            // 浊液层
+            const susY = -9;
+            const susLine = createWavyLine(13, lightColor); susLine.position.set(-15, susY, 0); extraObjects.microGroup.add(susLine);
+            const rockGeo = new THREE.DodecahedronGeometry(2.5, 1);
+            const pos = rockGeo.attributes.position;
+            for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * (1 + Math.random() * 0.4), pos.getY(i) * (1 + Math.random() * 0.4), pos.getZ(i) * (1 + Math.random() * 0.4));
+            rockGeo.computeVertexNormals();
+            const rock = new THREE.Mesh(rockGeo, new THREE.MeshPhongMaterial({ color: 0x0f172a, flatShading: true, shininess: 10 }));
+            rock.position.set(-1, susY, 0); extraObjects.microGroup.add(rock);
+
+            const refAngles = [Math.PI * 0.7, Math.PI * 0.9, -Math.PI * 0.8, -Math.PI * 0.6];
+            refAngles.forEach(angle => {
+                const refLine = createWavyLine(5, lightColor, 0.3, 2.5);
+                const wrapper = new THREE.Group(); wrapper.rotation.z = angle; wrapper.position.set(-2, susY, 0); wrapper.add(refLine);
+                const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 8), new THREE.MeshBasicMaterial({ color: lightColor }));
+                head.rotation.z = -Math.PI / 2; head.position.set(5, 0, 0); wrapper.add(head);
+                extraObjects.microGroup.add(wrapper);
+            });
+            
+            const labelSusMicro = createLabelSprite('浊液 (>100 nm)   光线反射', '#d97757', susY, 0);
+            labelSusMicro.position.set(13, susY, 0);
+            extraObjects.microGroup.add(labelSusMicro);
+        }
+
+        window.setTyndallView = function(view) {
+            extraObjects.tyndallView = view;
+            const btnMacro = document.getElementById('btn-tyndall-macro');
+            const btnMicro = document.getElementById('btn-tyndall-micro');
+
+            if (view === 'macro') {
+                extraObjects.macroGroup.visible = true; extraObjects.microGroup.visible = false;
+                camera.position.set(0, 2, 30);
+                btnMacro.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-rose-400 bg-rose-600 text-white font-bold whitespace-nowrap";
+                btnMicro.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+                document.getElementById('macro-controls').style.display = 'flex';
+            } else {
+                extraObjects.macroGroup.visible = false; extraObjects.microGroup.visible = true;
+                camera.position.set(0, -1, 35);
+                btnMacro.className = "px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap";
+                btnMicro.className = "px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-rose-400 bg-rose-600 text-white font-bold whitespace-nowrap";
+                document.getElementById('macro-controls').style.display = 'none';
+            }
+        };
+
+        window.toggleLaser = function() {
+            extraObjects.laserOn = !extraObjects.laserOn;
+            extraObjects.colloidBeam.visible = extraObjects.laserOn;
+            const btn = document.getElementById('btn-laser');
+            btn.innerText = extraObjects.laserOn ? '激光: ON' : '激光: OFF';
+            btn.className = extraObjects.laserOn ? 
+                'px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition shadow-[0_0_8px_rgba(225,29,72,0.5)] whitespace-nowrap' : 
+                'px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] transition border border-slate-500 whitespace-nowrap';
+        };
+
+        // ---------- 5. 胶体聚沉 ----------
+        function buildCoagulationScene() {
+            camera.position.set(0, 5, 38);
+            controls.target.set(0,0,0);
+
+            extraObjects.coagGroup = new THREE.Group();
+            scene.add(extraObjects.coagGroup);
+
+            // 玻璃烧杯 (容器)
+            const beakerGeo = new THREE.CylinderGeometry(14, 14, 22, 32);
+            const beakerMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 0.8, opacity: 1, transparent: true, roughness: 0.1, side: THREE.BackSide });
+            extraObjects.coagGroup.add(new THREE.Mesh(beakerGeo, beakerMat));
+            const edges = new THREE.EdgesGeometry(new THREE.CylinderGeometry(14, 14, 22, 16));
+            extraObjects.coagGroup.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color: 0x475569})));
+
+            extraObjects.coagParticles = [];
+            extraObjects.agents = []; // 滴加的离子或胶体
+            extraObjects.coagState = 'normal'; 
+            extraObjects.stirrer = null;
+            extraObjects.flame = null;
+
+            const sphereGeo = new THREE.SphereGeometry(0.8, 16, 16);
+            const colloidMat = new THREE.MeshPhongMaterial({ color: COLORS.feoh3, shininess: 80 });
+            const haloGeo = new THREE.SphereGeometry(1.6, 16, 16);
+            const haloMat = new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.25, side: THREE.BackSide, depthWrite: false });
+
+            // 生成带正电的氢氧化铁胶体
+            for (let i = 0; i < 45; i++) {
+                const mesh = new THREE.Mesh(sphereGeo, colloidMat.clone());
+                mesh.position.set((Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18);
+                const halo = new THREE.Mesh(haloGeo, haloMat.clone());
+                const sprite = createChargeSprite('+', '#fde047');
+                
+                mesh.add(halo);
+                sprite.position.set(1, 1, 0);
+                mesh.add(sprite); 
+                
+                extraObjects.coagGroup.add(mesh);
+
+                extraObjects.coagParticles.push({
+                    mesh: mesh, halo: halo, sprite: sprite,
+                    v: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1),
+                    isNeutral: false,
+                    attachedCount: 0 // 记录被阴离子包裹的数量
+                });
+            }
+        }
+
+        window.triggerCoagulation = function(type) {
+            if(currentMode !== 'coagulation') return;
+            extraObjects.coagState = 'normal'; 
+
+            if(type === 1) {
+                // 1. 滴加 NaCl (阴离子 Cl- 主动吸附, 阳离子 Na+ 自由游走)
+                const geoCl = new THREE.SphereGeometry(0.4, 16, 16);
+                const matCl = new THREE.MeshPhongMaterial({color: 0x38bdf8}); // 天蓝色 Cl-
+                const geoNa = new THREE.SphereGeometry(0.3, 16, 16);
+                const matNa = new THREE.MeshPhongMaterial({color: 0xa855f7}); // 紫色 Na+
+
+                // 加大生成量（确保45个胶粒都能吸收到至少2个阴离子，总数120绝对充足）
+                for(let i=0; i<120; i++) {
+                    // Cl- (阴离子)
+                    const meshCl = new THREE.Mesh(geoCl, matCl);
+                    meshCl.position.set((Math.random()-0.5)*12, 14 + Math.random()*5, (Math.random()-0.5)*12); 
+                    const spriteCl = createChargeSprite('-', '#38bdf8');
+                    spriteCl.scale.set(0.6,0.6,1);
+                    spriteCl.position.set(0.5, 0.5, 0);
+                    meshCl.add(spriteCl);
+                    extraObjects.coagGroup.add(meshCl);
+                    extraObjects.agents.push({ mesh: meshCl, v: new THREE.Vector3(0,-0.15,0), type: 'anion', isAttached: false });
+                    
+                    // Na+ (阳离子)
+                    const meshNa = new THREE.Mesh(geoNa, matNa);
+                    meshNa.position.set((Math.random()-0.5)*12, 14 + Math.random()*5, (Math.random()-0.5)*12);
+                    const spriteNa = createChargeSprite('+', '#a855f7');
+                    spriteNa.scale.set(0.6,0.6,1);
+                    spriteNa.position.set(0.5, 0.5, 0);
+                    meshNa.add(spriteNa);
+                    extraObjects.coagGroup.add(meshNa);
+                    extraObjects.agents.push({ mesh: meshNa, v: new THREE.Vector3(0,-0.15,0), type: 'cation' });
+                }
+            } else if (type === 2) {
+                // 2. 滴加相反电荷胶体 (如硅酸胶体)
+                const geo = new THREE.SphereGeometry(0.8, 16, 16);
+                const mat = new THREE.MeshPhongMaterial({color: 0x10b981}); 
+                const haloGeo = new THREE.SphereGeometry(1.6, 16, 16);
+                const haloMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, side: THREE.BackSide, depthWrite: false });
+
+                // 生成充足的相反电荷胶体，保证能全部中和
+                for(let i=0; i<60; i++) {
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set((Math.random()-0.5)*12, 14 + Math.random()*5, (Math.random()-0.5)*12);
+                    const halo = new THREE.Mesh(haloGeo, haloMat.clone());
+                    const sprite = createChargeSprite('-', '#38bdf8');
+                    mesh.add(halo);
+                    sprite.position.set(1, 1, 0);
+                    mesh.add(sprite);
+                    extraObjects.coagGroup.add(mesh);
+                    extraObjects.agents.push({ mesh: mesh, halo: halo, sprite: sprite, v: new THREE.Vector3(0,-0.15,0), type: 'neg_colloid', isAttached: false });
+                }
+            } else if (type === 3) {
+                extraObjects.coagState = 'heating';
+                if(!extraObjects.flame) {
+                    const flameGeo = new THREE.ConeGeometry(6, 8, 16);
+                    const flameMat = new THREE.MeshBasicMaterial({color: 0xef4444, transparent: true, opacity: 0.7});
+                    extraObjects.flame = new THREE.Mesh(flameGeo, flameMat);
+                    extraObjects.flame.position.set(0, -15, 0);
+                    extraObjects.coagGroup.add(extraObjects.flame);
+                }
+                extraObjects.flame.visible = true;
+                if(extraObjects.stirrer) extraObjects.stirrer.visible = false;
+            } else if (type === 4) {
+                extraObjects.coagState = 'stirring';
+                if(!extraObjects.stirrer) {
+                    const stirGeo = new THREE.CylinderGeometry(0.5, 0.5, 24, 16);
+                    const stirMat = new THREE.MeshPhongMaterial({color: 0x94a3b8});
+                    extraObjects.stirrer = new THREE.Mesh(stirGeo, stirMat);
+                    extraObjects.stirrer.rotation.z = Math.PI / 8;
+                    extraObjects.coagGroup.add(extraObjects.stirrer);
+                }
+                extraObjects.stirrer.visible = true;
+                if(extraObjects.flame) extraObjects.flame.visible = false;
+            }
+        }
+
+        window.resetCoagulation = function() {
+            clearScene();
+            buildCoagulationScene();
+        }
+
+        const modeData = {
+            'filtration': {
+                title: '渗析与过滤 (孔径分析)',
+                content: `
+                    <p><b>现象：</b>利用孔径差异分离不同粒径的分散质。</p>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><b>浊液 (>100nm)：</b>颗粒过大，被滤纸拦截。</li>
+                        <li><b>胶体 (1~100nm)：</b>能透过滤纸，但<b>被半透膜拦截</b>。</li>
+                        <li><b>溶液 (<1nm)：</b>离子极小，顺利穿透全部。</li>
+                    </ul>
+                `,
+                legend: `
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#d97757] mr-2"></span> 浊液粒子 (>100nm)</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#10b981] mr-2"></span> 胶体粒子 (1~100nm)</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#3b82f6] mr-2"></span> 溶液离子 (<1nm)</div>
+                `,
+                controlsHtml: `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">视窗:</span>
+                        <button id="btn-exp" onclick="setFiltrationView('experiment')" class="px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-indigo-400 bg-indigo-600 text-white font-bold whitespace-nowrap">🎥 实验演示</button>
+                        <button id="btn-paper" onclick="setFiltrationView('paper')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">🔍 滤纸表面</button>
+                        <button id="btn-membrane" onclick="setFiltrationView('membrane')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">🔍 半透膜表面</button>
+                        <div class="w-px h-6 bg-slate-700 mx-1"></div>
+                        <button onclick="resetParticles()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-[11px] transition border border-slate-600 whitespace-nowrap">↺ 重置位置</button>
+                    </div>
+                `,
+                builder: buildFiltrationScene
+            },
+            'metastability': {
+                title: '胶体的介稳性',
+                content: `
+                    <p><b>现象：</b>胶体不易发生聚沉，能稳定存在。</p>
+                    <ol class="list-decimal pl-4 space-y-1 mt-2 text-slate-300">
+                        <li><span class="text-amber-400 font-bold">胶粒带电：</span>表面吸附相同离子形成双电层(黄色光晕)，导致极强的<b>同性相斥</b>。(接近时排斥力猛增并发光)</li>
+                        <li><span class="text-slate-200 font-bold">布朗运动：</span>无规则热运动阻碍下沉。</li>
+                    </ol>
+                `,
+                legend: `<div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#b91c1c] mr-2 shadow-[0_0_8px_#fde047]"></span> 带正电胶粒 (双电层)</div>`,
+                controlsHtml: `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">原理剖析:</span>
+                        <button id="btn-meta-normal" onclick="setMetaState('normal')" class="px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-amber-400 bg-amber-600 text-white font-bold whitespace-nowrap">综合态 (默认)</button>
+                        <button id="btn-meta-repulsion" onclick="setMetaState('repulsion')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">1. 静电排斥演示</button>
+                        <button id="btn-meta-brownian" onclick="setMetaState('brownian')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">2. 布朗运动演示</button>
+                    </div>
+                `,
+                builder: buildMetastabilityScene
+            },
+            'electrophoresis': {
+                title: '电泳现象',
+                content: `
+                    <p><b>宏观：</b>通电后阴极(负极)附近红褐色加深，阳极逐渐变浅。</p>
+                    <p class="mt-2"><b>微观：</b>带正电荷的胶粒，在电场中<b>定向向阴极移动</b>。而分散剂(不带电)仅作无规则布朗运动。</p>
+                `,
+                legend: `
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#b91c1c] mr-2"></span> 带正电胶粒 (向阴极移动)</div>
+                    <div class="flex items-center mt-1"><span class="w-3 h-3 rounded-full bg-[#64748b] mr-2"></span> 中性粒子/溶剂 (随机运动)</div>
+                `,
+                controlsHtml: `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">视窗:</span>
+                        <button id="btn-ep-macro" onclick="setEpView('macro')" class="px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-blue-400 bg-blue-600 text-white font-bold whitespace-nowrap">1. 宏观</button>
+                        <button id="btn-ep-micro" onclick="setEpView('micro')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">2. 微观</button>
+                        <div class="w-px h-6 bg-slate-700 mx-1"></div>
+                        <button id="btn-power" onclick="toggleElectrophoresisPower()" class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] transition border border-slate-500 whitespace-nowrap">
+                            ⚡ 电源: OFF
+                        </button>
+                    </div>
+                `,
+                builder: buildElectrophoresisScene
+            },
+            'tyndall': {
+                title: '丁达尔效应 (宏观光路与微观散射)',
+                content: `
+                    <p><b>现象：</b>光束通过胶体时出现可见的"光亮通路"。</p>
+                    <p class="mt-1"><b>微观机制：</b>可见光波长通常为 400~700nm。</p>
+                    <ul class="list-disc pl-4 space-y-1 mt-1">
+                        <li><b>溶液：</b>粒子(<1nm)极小，光线<b>穿透</b>。</li>
+                        <li><b>胶体：</b>粒子(1~100nm)与光波长接近，发生强烈<b>散射</b>，使光路可见。</li>
+                        <li><b>浊液：</b>粒子(>100nm)过大，光线被阻挡并发生<b>反射</b>。</li>
+                    </ul>
+                `,
+                legend: `
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-rose-400 mr-2"></span> 正在发生散射的胶体</div>
+                `,
+                controlsHtml: `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">视窗:</span>
+                        <button id="btn-tyndall-macro" onclick="setTyndallView('macro')" class="px-3 py-1.5 rounded-lg text-[11px] transition ring-1 ring-rose-400 bg-rose-600 text-white font-bold whitespace-nowrap">1. 宏观</button>
+                        <button id="btn-tyndall-micro" onclick="setTyndallView('micro')" class="px-3 py-1.5 rounded-lg text-[11px] transition border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap">2. 微观</button>
+                        <div id="macro-controls" class="flex items-center space-x-2 border-l border-slate-700 pl-3 ml-1">
+                            <button id="btn-laser" onclick="toggleLaser()" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition shadow-[0_0_8px_rgba(225,29,72,0.5)] whitespace-nowrap">激光: ON</button>
+                        </div>
+                    </div>
+                `,
+                builder: buildTyndallScene
+            },
+            'coagulation': {
+                title: '胶体聚沉 (中和与大规模团聚)',
+                content: `
+                    <p><b>原理：</b>破坏胶体微粒表面的双电层（电荷中和）或通过外力增大碰撞概率，使微粒彼此强烈吸引，聚集成大尺寸的絮凝团并沉降。</p>
+                    <ul class="list-disc pl-4 space-y-1 mt-2 text-slate-300">
+                        <li><span class="text-blue-400 font-bold">加电解质 / 反电荷胶体：</span>异性电荷中和了双电层，排斥力消失，发生聚沉。</li>
+                        <li><span class="text-orange-400 font-bold">加热 / 搅拌：</span>加剧微粒热运动，高能碰撞直接突破了双电层的排斥势垒。</li>
+                    </ul>
+                `,
+                legend: `
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#b91c1c] mr-2 shadow-[0_0_8px_#fde047]"></span> 稳定胶粒 (带排斥双电层)</div>
+                    <div class="flex items-center mt-1"><span class="w-3 h-3 rounded-full bg-[#5c1a06] mr-2"></span> 中和后的胶粒 (无排斥力，吸引成团)</div>
+                `,
+                controlsHtml: `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">聚沉条件:</span>
+                        <button onclick="triggerCoagulation(1)" class="px-3 py-1.5 rounded-lg text-[11px] font-medium transition bg-blue-900/40 text-blue-200 border border-blue-700/50 hover:bg-blue-600 hover:text-white whitespace-nowrap">+ NaCl 溶液</button>
+                        <button onclick="triggerCoagulation(2)" class="px-3 py-1.5 rounded-lg text-[11px] font-medium transition bg-emerald-900/40 text-emerald-200 border border-emerald-700/50 hover:bg-emerald-600 hover:text-white whitespace-nowrap">+ 硅酸胶体</button>
+                        <button onclick="triggerCoagulation(3)" class="px-3 py-1.5 rounded-lg text-[11px] font-medium transition bg-orange-900/40 text-orange-200 border border-orange-700/50 hover:bg-orange-600 hover:text-white whitespace-nowrap">🔥 加热</button>
+                        <button onclick="triggerCoagulation(4)" class="px-3 py-1.5 rounded-lg text-[11px] font-medium transition bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-600 whitespace-nowrap">🔄 搅拌</button>
+                        <div class="w-px h-6 bg-slate-700 mx-1"></div>
+                        <button onclick="resetCoagulation()" class="px-3 py-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white text-[11px] transition border border-slate-600 whitespace-nowrap">↺ 重置</button>
+                    </div>
+                `,
+                builder: buildCoagulationScene
+            }
+        };
+
+        function switchMode(mode) {
+            currentMode = mode;
+            const themes = {
+                'filtration': 'indigo',
+                'metastability': 'amber',
+                'electrophoresis': 'blue',
+                'tyndall': 'rose',
+                'coagulation': 'orange'
+            };
+            const navIds = ['filtration', 'metastability', 'electrophoresis', 'tyndall', 'coagulation'];
+            
+            navIds.forEach(id => {
+                const btn = document.getElementById('nav-' + id);
+                if (btn) {
+                    if (id === mode) {
+                        btn.className = `w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 bg-${themes[id]}-600 text-white shadow-lg shadow-${themes[id]}-600/20`;
+                    } else {
+                        btn.className = `w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition flex items-center space-x-3 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200`;
+                    }
+                }
+            });
+
+            const data = modeData[mode];
+            if (data) {
+                document.getElementById('info-title').innerText = data.title;
+                document.getElementById('info-content').innerHTML = data.content;
+                document.getElementById('legend-panel').innerHTML = data.legend;
+                document.getElementById('controls-panel').innerHTML = data.controlsHtml;
+
+                if (mode === 'metastability') extraObjects.metaState = 'normal'; // 重置介稳性状态
+
+                clearScene();
+                data.builder();
+            }
+        }
+
+        function animate() {
+            animationFrameId = requestAnimationFrame(animate);
+            if(controls) controls.update();
+
+            if (currentMode === 'filtration') {
+                activeParticles.forEach(p => {
+                    // 【修复】将 -20 调整为 -12.5，确保小于1nm的小蓝球停留在长方体底面范围内
+                    let targetY = -12.5;
+                    if (extraObjects.currentView === 'experiment') {
+                        if (p.type === 'suspension') targetY = 4.8;
+                        else if (p.type === 'colloid') targetY = -3.2;
+                    }
+                    
+                    if (p.mesh.position.y > targetY) {
+                        p.mesh.position.y -= p.speed;
+                        p.mesh.position.x += (Math.random() - 0.5) * 0.04;
+                        p.mesh.position.z += (Math.random() - 0.5) * 0.04;
+                    } else {
+                        if (p.mesh.position.y < targetY - 0.1) p.mesh.position.y += 0.1;
+                        else if (Math.random() > 0.8) {
+                            p.mesh.position.x += (Math.random() - 0.5) * 0.03;
+                            p.mesh.position.z += (Math.random() - 0.5) * 0.03;
+                            p.mesh.position.x = Math.max(-7, Math.min(7, p.mesh.position.x));
+                            p.mesh.position.z = Math.max(-7, Math.min(7, p.mesh.position.z));
+                        }
+                    }
+                });
+            } 
+            else if (currentMode === 'metastability') {
+                const state = extraObjects.metaState || 'normal';
+
+                if (state === 'repulsion') {
+                    if (activeParticles.length >= 2) {
+                        const p1 = activeParticles[0];
+                        const p2 = activeParticles[1];
+                        
+                        p1.mesh.position.add(p1.velocity);
+                        p2.mesh.position.add(p2.velocity);
+                        
+                        const dist = p1.mesh.position.distanceTo(p2.mesh.position);
+                        const positions = extraObjects.repulsionLines.geometry.attributes.position.array;
+                        
+                        // 当靠近时产生剧烈排斥并闪烁
+                        if (dist < 8.5) {
+                            const forceMag = 0.8 / (dist * dist);
+                            const dir = p1.mesh.position.clone().sub(p2.mesh.position).normalize();
+                            p1.velocity.add(dir.clone().multiplyScalar(forceMag));
+                            p2.velocity.sub(dir.clone().multiplyScalar(forceMag));
+                            
+                            p1.halo.material.opacity = Math.min(0.9, 0.2 + 2.0/dist); 
+                            p2.halo.material.opacity = Math.min(0.9, 0.2 + 2.0/dist);
+                            p1.halo.scale.setScalar(1.0 + 2.0/dist);
+                            p2.halo.scale.setScalar(1.0 + 2.0/dist);
+
+                            positions[0] = p1.mesh.position.x; positions[1] = p1.mesh.position.y; positions[2] = p1.mesh.position.z;
+                            positions[3] = p2.mesh.position.x; positions[4] = p2.mesh.position.y; positions[5] = p2.mesh.position.z;
+                            extraObjects.repulsionLines.geometry.attributes.position.needsUpdate = true;
+                        } else {
+                            // 跑远后重置回来继续对撞
+                            if (dist > 19.0) {
+                                p1.mesh.position.set(-9, 0, 0); p1.velocity.set(0.1, 0, 0);
+                                p2.mesh.position.set(9, 0, 0); p2.velocity.set(-0.1, 0, 0);
+                            }
+                            p1.halo.material.opacity = 0.2; p2.halo.material.opacity = 0.2;
+                            p1.halo.scale.setScalar(1); p2.halo.scale.setScalar(1);
+                            for(let k=0; k<6; k++) positions[k] = 0;
+                            extraObjects.repulsionLines.geometry.attributes.position.needsUpdate = true;
+                        }
+                    }
+                }
+                else if (state === 'brownian') {
+                    // 布朗运动增强演示：去除排斥，强化随机热运动
+                    activeParticles.forEach((p) => {
+                        p.mesh.position.add(p.velocity);
+                        // 软边界弹回
+                        if (p.mesh.position.length() > 11.2) {
+                            p.velocity.reflect(p.mesh.position.clone().normalize()).multiplyScalar(0.9);
+                            p.mesh.position.setLength(11.2);
+                        }
+                        p.velocity.multiplyScalar(0.94); // 阻尼
+                        // 不断施加剧烈的随机位移模拟分子撞击
+                        p.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.25, (Math.random()-0.5)*0.25, (Math.random()-0.5)*0.25));
+                    });
+                }
+                else {
+                    // 综合态（normal）
+                    let lineIndex = 0;
+                    const positions = extraObjects.repulsionLines.geometry.attributes.position.array;
+                    for(let k = 0; k < positions.length; k++) positions[k] = 0; 
+
+                    activeParticles.forEach((p, i) => {
+                        p.mesh.position.add(p.velocity);
+                        if (p.mesh.position.length() > 11.2) {
+                            p.velocity.reflect(p.mesh.position.clone().normalize()).multiplyScalar(0.8);
+                            p.mesh.position.setLength(11.2);
+                        }
+                        
+                        for (let j = i + 1; j < activeParticles.length; j++) {
+                            const p2 = activeParticles[j];
+                            const dist = p.mesh.position.distanceTo(p2.mesh.position);
+                            if (dist < 4.5) { 
+                                const forceMag = 0.12 / (dist * dist);
+                                const dir = p.mesh.position.clone().sub(p2.mesh.position).normalize();
+                                p.velocity.add(dir.clone().multiplyScalar(forceMag));
+                                p2.velocity.sub(dir.clone().multiplyScalar(forceMag));
+                                
+                                p.halo.material.opacity = 0.8; p2.halo.material.opacity = 0.8;
+                                p.halo.scale.set(1.3, 1.3, 1.3); p2.halo.scale.set(1.3, 1.3, 1.3);
+
+                                if (lineIndex < 150) {
+                                    positions[lineIndex * 6] = p.mesh.position.x;
+                                    positions[lineIndex * 6 + 1] = p.mesh.position.y;
+                                    positions[lineIndex * 6 + 2] = p.mesh.position.z;
+                                    positions[lineIndex * 6 + 3] = p2.mesh.position.x;
+                                    positions[lineIndex * 6 + 4] = p2.mesh.position.y;
+                                    positions[lineIndex * 6 + 5] = p2.mesh.position.z;
+                                    lineIndex++;
+                                }
+                            } else {
+                                if(p.halo.material.opacity > 0.15) { p.halo.material.opacity -= 0.05; p.halo.scale.set(1, 1, 1); }
+                                if(p2.halo.material.opacity > 0.15) { p2.halo.material.opacity -= 0.05; p2.halo.scale.set(1, 1, 1); }
+                            }
+                        }
+                        p.velocity.multiplyScalar(0.98); 
+                        p.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02));
+                    });
+                    extraObjects.repulsionLines.geometry.attributes.position.needsUpdate = true;
+                }
+            }
+            else if (currentMode === 'electrophoresis') {
+                if (extraObjects.epFluidGeo) {
+                    const pos = extraObjects.epFluidGeo.attributes.position;
+                    const col = extraObjects.epFluidGeo.attributes.color;
+                    let ratio = extraObjects.powerRatio;
+                    
+                    if (extraObjects.powerOn) extraObjects.powerRatio = Math.min(1, ratio + 0.015);
+                    else extraObjects.powerRatio = Math.max(0, ratio - 0.02);
+                    
+                    for(let i=0; i<pos.count; i++) {
+                        const x = pos.getX(i);
+                        if (x > 3) {
+                            col.setXYZ(i, 0.6 + 0.3 * extraObjects.powerRatio, 0.2 - 0.15 * extraObjects.powerRatio, 0.0);
+                        } else if (x < -3) {
+                            col.setXYZ(i, 0.6 - 0.2 * extraObjects.powerRatio, 0.2 + 0.3 * extraObjects.powerRatio, 0.0 + 0.5 * extraObjects.powerRatio);
+                        }
+                    }
+                    col.needsUpdate = true;
+                }
+
+                activeParticles.forEach(p => {
+                    if (p.mesh.position.y > 5 || p.mesh.position.y < -5) p.baseVy *= -1;
+                    p.mesh.position.y += p.baseVy;
+                    
+                    if (p.isCharged && extraObjects.powerOn) {
+                        p.mesh.position.x += 0.15; 
+                        if (p.mesh.position.x > 12) {
+                            p.mesh.position.x = 12; 
+                            p.mesh.position.y += (Math.random()-0.5)*0.1;
+                        }
+                    } else {
+                        p.mesh.position.x += p.baseVx;
+                        if (p.mesh.position.x > 12.5 || p.mesh.position.x < -12.5) p.baseVx *= -1;
+                    }
+                });
+            }
+            else if (currentMode === 'tyndall') {
+                if (extraObjects.tyndallView === 'micro' && extraObjects.wavyLines) {
+                    const time = Date.now() * 0.005;
+                    extraObjects.wavyLines.forEach(wl => {
+                        const positions = wl.line.geometry.attributes.position.array;
+                        for (let i = 0, j = 0; i < wl.basePts.length; i++, j += 3) {
+                            positions[j + 1] = Math.sin(wl.basePts[i].x * wl.freq - time * 3) * wl.amp;
+                        }
+                        wl.line.geometry.attributes.position.needsUpdate = true;
+                    });
+                }
+            }
+            else if (currentMode === 'coagulation') {
+                // 1. 处理滴加的试剂 (追踪与中和)
+                for (let i = extraObjects.agents.length - 1; i >= 0; i--) {
+                    let agent = extraObjects.agents[i];
+                    
+                    if (agent.type === 'cation') {
+                        agent.mesh.position.add(agent.v);
+                        agent.v.add(new THREE.Vector3((Math.random()-0.5)*0.06, (Math.random()-0.5)*0.06, (Math.random()-0.5)*0.06));
+                        agent.v.clampLength(0, 0.25);
+                        const r = Math.sqrt(agent.mesh.position.x**2 + agent.mesh.position.z**2);
+                        if(r > 13) agent.v.reflect(new THREE.Vector3(-agent.mesh.position.x, 0, -agent.mesh.position.z).normalize());
+                        if(agent.mesh.position.y < -10) agent.mesh.position.y = -10;
+                        continue;
+                    }
+
+                    if (!agent.isAttached) {
+                        agent.mesh.position.add(agent.v);
+                        agent.v.add(new THREE.Vector3((Math.random()-0.5)*0.06, (Math.random()-0.5)*0.06, (Math.random()-0.5)*0.06));
+                        agent.v.clampLength(0, 0.3);
+
+                        let closestP = null;
+                        let minDist = Infinity;
+                        for (let p of extraObjects.coagParticles) {
+                            if (!p.isNeutral) { 
+                                let d = agent.mesh.position.distanceTo(p.mesh.position);
+                                if (d < minDist) { minDist = d; closestP = p; }
+                            }
+                        }
+
+                        if (closestP) {
+                            if (minDist < 6.0) {
+                                const pullForce = closestP.mesh.position.clone().sub(agent.mesh.position).normalize().multiplyScalar(0.04);
+                                agent.v.add(pullForce);
+                            }
+                            if (minDist < (agent.type === 'neg_colloid' ? 1.6 : 1.2)) {
+                                agent.isAttached = true;
+                                extraObjects.coagGroup.remove(agent.mesh);
+                                closestP.mesh.add(agent.mesh);
+                                
+                                const surfPos = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize().multiplyScalar(1.0);
+                                agent.mesh.position.copy(surfPos);
+                                agent.mesh.scale.set(0.6, 0.6, 0.6);
+                                
+                                if(agent.halo) agent.halo.visible = false;
+                                if(agent.sprite) agent.sprite.visible = false;
+
+                                closestP.attachedCount++;
+                                const threshold = agent.type === 'neg_colloid' ? 1 : 2; 
+                                if (closestP.attachedCount >= threshold) {
+                                    closestP.isNeutral = true;
+                                    closestP.halo.visible = false;     
+                                    closestP.sprite.visible = false;   
+                                    closestP.mesh.material.color.setHex(0x5c1a06); 
+                                }
+                                extraObjects.agents.splice(i, 1);
+                                continue;
+                            }
+                        }
+
+                        const r = Math.sqrt(agent.mesh.position.x**2 + agent.mesh.position.z**2);
+                        if(r > 13) agent.v.reflect(new THREE.Vector3(-agent.mesh.position.x, 0, -agent.mesh.position.z).normalize());
+                        if(agent.mesh.position.y < -10) agent.mesh.position.y = -10;
+                    }
+                }
+
+                // 2. 宏观环境动画与脱电荷
+                let speedMultiplier = 1.0;
+                if(extraObjects.coagState === 'stirring' && extraObjects.stirrer) {
+                    extraObjects.stirrer.rotation.y += 0.3; 
+                } else if (extraObjects.coagState === 'heating' && extraObjects.flame) {
+                    extraObjects.flame.scale.set(1 + Math.random()*0.3, 1 + Math.random()*0.2, 1 + Math.random()*0.3);
+                    speedMultiplier = 4.0;
+                }
+
+                if (extraObjects.coagState === 'heating' || extraObjects.coagState === 'stirring') {
+                    for(let i=0; i<extraObjects.coagParticles.length; i++) {
+                        let p = extraObjects.coagParticles[i];
+                        if (!p.isNeutral && Math.random() < 0.025) { // 稍微加快加热搅拌的中和速度
+                            p.isNeutral = true; p.halo.visible = false; p.sprite.visible = false; p.mesh.material.color.setHex(0x5c1a06);
+                        }
+                    }
+                }
+
+                // *** 核心改动：计算所有已中和胶粒的全局质心 (Center of Mass) ***
+                let neutralCoM = new THREE.Vector3(0, 0, 0);
+                let neutralCount = 0;
+                for(let p of extraObjects.coagParticles) {
+                    if (p.isNeutral) {
+                        neutralCoM.add(p.mesh.position);
+                        neutralCount++;
+                    }
+                }
+                if (neutralCount > 0) {
+                    neutralCoM.divideScalar(neutralCount);
+                }
+
+                // 3. 胶体微粒互动与全局聚沉
+                for(let i=0; i<extraObjects.coagParticles.length; i++) {
+                    let p = extraObjects.coagParticles[i];
+                    
+                    if(extraObjects.coagState === 'stirring') {
+                        const distToCenter = Math.sqrt(p.mesh.position.x**2 + p.mesh.position.z**2);
+                        if(distToCenter > 1) {
+                            const vortexForce = new THREE.Vector3(-p.mesh.position.z, 0, p.mesh.position.x).normalize().multiplyScalar(0.08);
+                            p.v.add(vortexForce);
+                        }
+                    }
+
+                    p.mesh.position.add(p.v);
+
+                    // 烧杯边界碰撞
+                    const r = Math.sqrt(p.mesh.position.x**2 + p.mesh.position.z**2);
+                    if (r > 13) {
+                        const normal = new THREE.Vector3(-p.mesh.position.x, 0, -p.mesh.position.z).normalize();
+                        p.v.reflect(normal).multiplyScalar(0.8);
+                        p.mesh.position.x = (p.mesh.position.x / r) * 13;
+                        p.mesh.position.z = (p.mesh.position.z / r) * 13;
+                    }
+                    if (p.mesh.position.y > 10) p.v.y *= -1;
+
+                    // 粒子间物理交互
+                    for(let j=0; j<extraObjects.coagParticles.length; j++) {
+                        if(i === j) continue;
+                        let p2 = extraObjects.coagParticles[j];
+                        
+                        const dist = p.mesh.position.distanceTo(p2.mesh.position);
+                        
+                        if (dist < 3.5 && !p.isNeutral && !p2.isNeutral && extraObjects.coagState === 'normal') {
+                            // 规则A: 未中和时，强排斥力
+                            const force = 0.15 / (dist * dist);
+                            const dir = p.mesh.position.clone().sub(p2.mesh.position).normalize();
+                            p.v.add(dir.clone().multiplyScalar(force));
+                        } 
+                        else if (dist < 1.8) {
+                            // 规则B: 高能状态下的物理碰撞直接脱电荷
+                            if (extraObjects.coagState === 'heating' || extraObjects.coagState === 'stirring') {
+                                if(!p.isNeutral) { p.isNeutral = true; p.halo.visible = false; p.sprite.visible = false; p.mesh.material.color.setHex(0x5c1a06); }
+                                if(!p2.isNeutral) { p2.isNeutral = true; p2.halo.visible = false; p2.sprite.visible = false; p2.mesh.material.color.setHex(0x5c1a06); }
+                            }
+                            
+                            // 规则C: 堆积排斥力 - 阻止同在一个聚沉团里的粒子完全重叠成一个点，保持体积感
+                            if (p.isNeutral && p2.isNeutral && dist < 1.2) {
+                                const dir = p.mesh.position.clone().sub(p2.mesh.position).normalize();
+                                p.v.add(dir.clone().multiplyScalar(0.015 / Math.max(0.1, dist)));
+                            }
+                        }
+                    }
+
+                    // *** 核心改动：形成一个大团簇并沉降 ***
+                    if (p.isNeutral) {
+                        // 1. 全局向质心靠拢：产生所有粒子抱作一团的视觉震撼感
+                        if (neutralCount > 1) {
+                            const dirToCoM = neutralCoM.clone().sub(p.mesh.position);
+                            if (dirToCoM.length() > 0.2) {
+                                // 聚沉的粒子越多，向心收缩力越强
+                                p.v.add(dirToCoM.normalize().multiplyScalar(0.008 + neutralCount * 0.0002));
+                            }
+                        }
+
+                        // 2. 重力沉降
+                        p.v.y -= 0.004 * (1 + neutralCount * 0.02); 
+                        
+                        // 3. 沉底堆积与摩擦阻力
+                        if (p.mesh.position.y <= -9.0) {
+                            // 软触底，允许略微堆成一个小山包
+                            p.mesh.position.y = -9.0 + (p.mesh.position.y + 9.0) * 0.1;
+                            if (p.mesh.position.y < -9.5) p.mesh.position.y = -9.5; 
+                            
+                            p.v.y *= -0.2; // 消除弹跳
+                            p.v.x *= 0.6;  // 水底高摩擦，紧紧抱团
+                            p.v.z *= 0.6;
+                        }
+
+                        // 中和粒子的运动阻尼较大，有利于稳定成团
+                        p.v.multiplyScalar(0.92); 
+                    } else {
+                        // 未中和的粒子继续保持布朗运动
+                        p.v.multiplyScalar(0.96);
+                        p.v.add(new THREE.Vector3((Math.random()-0.5)*0.02*speedMultiplier, (Math.random()-0.5)*0.02*speedMultiplier, (Math.random()-0.5)*0.02*speedMultiplier));
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function resetCamera() {
+            if(controls) controls.target.set(0,0,0);
+            const yOffset = (currentMode === 'filtration' && extraObjects.currentView === 'experiment') ? 6 : (currentMode === 'tyndall' && extraObjects.tyndallView === 'macro' ? 2 : 0);
+            camera.position.set(0, yOffset, 35);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        let isNavOpen = true;
+        window.toggleNavPanel = function() {
+            isNavOpen = !isNavOpen;
+            const sidebar = document.getElementById('nav-sidebar');
+            const toggleBtn = document.getElementById('toggle-nav-btn');
+            
+            if (isNavOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                toggleBtn.classList.add('left-64');
+                toggleBtn.classList.remove('left-0');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                toggleBtn.classList.remove('left-64');
+                toggleBtn.classList.add('left-0');
+            }
+        };
+
+        // 原理侧边栏开关状态控制
+        let isInfoOpen = false;
+        window.toggleInfoPanel = function() {
+            isInfoOpen = !isInfoOpen;
+            const sidebar = document.getElementById('info-sidebar');
+            const toggleBtn = document.getElementById('toggle-info-btn');
+            
+            if (isInfoOpen) {
+                sidebar.classList.remove('translate-x-full');
+                toggleBtn.classList.add('right-80'); // 按钮随面板移动
+            } else {
+                sidebar.classList.add('translate-x-full');
+                toggleBtn.classList.remove('right-80');
+            }
+        };
+
+        window.onload = initThree;
+    </script>
+</body>
+</html>
