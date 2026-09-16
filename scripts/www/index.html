@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电解质与离子反应微观实验室 - 终极整合版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background-color: #0f172a; 
+            color: white; font-family: 'Inter', system-ui, sans-serif; 
+            transition: background-color 2s ease; user-select: none;
+        }
+        body.underwater { background-color: #082f49; } 
+        
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        canvas { touch-action: none; outline: none; display: block; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .tab-btn { opacity: 0.5; transition: all 0.3s; border-bottom: 2px solid transparent; }
+        .tab-btn.active { opacity: 1; font-weight: bold; border-bottom: 2px solid #38bdf8; color: #38bdf8; }
+        
+        .sub-btn { transition: all 0.2s; border: 1px solid transparent; }
+        .sub-btn.active { background: #2563eb; color: white; border-color: #60a5fa; box-shadow: 0 0 10px rgba(59,130,246,0.5); }
+
+        .eq-transition { transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .spectator-crossed {
+            position: relative;
+            color: #ef4444; 
+            opacity: 0.4;
+        }
+        .spectator-crossed::after {
+            content: '';
+            position: absolute;
+            left: -10%; top: 50%; width: 120%; height: 2px;
+            background-color: #ef4444;
+            transform: rotate(-15deg);
+            box-shadow: 0 0 8px #ef4444;
+            animation: slash 0.5s ease-out forwards;
+        }
+        @keyframes slash {
+            0% { width: 0; opacity: 1; }
+            100% { width: 120%; opacity: 1; }
+        }
+        .eq-part { display: inline-block; padding: 0 4px; }
+        
+        #chartCanvas { width: 100%; height: 60px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    
+    <div id="canvas-container"></div>
+
+    <!-- 动态离子方程式推演板 (已放大体积，增强可读性，保留拉伸效果) -->
+    <div id="equation-board" class="hidden absolute top-6 left-6 z-20 glass-panel px-6 py-4 rounded-2xl flex-col border-t-4 border-t-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.2)] min-w-[450px] max-w-[650px] transition-all duration-300">
+        <div class="flex items-center justify-between cursor-pointer group" onclick="toggleEquationBoard()">
+            <div class="text-[14px] text-cyan-300 font-bold uppercase tracking-widest flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                离子方程式动态推演面板
+            </div>
+            <div id="eq-toggle-icon" class="text-cyan-400 transform transition-transform duration-300 text-lg">▼</div>
+        </div>
+        <div id="eq-content-wrapper" class="overflow-hidden transition-all duration-500 max-h-[600px] opacity-100 pointer-events-none">
+            <!-- 字号全面加大 -->
+            <div id="eq-step1" class="text-[17px] font-mono font-bold text-white eq-transition text-center leading-relaxed mt-4"></div>
+            <div id="eq-step2" class="text-[15px] font-mono font-bold text-blue-300 eq-transition text-center h-0 opacity-0 overflow-hidden mt-0 leading-relaxed"></div>
+            <div id="eq-step3" class="text-[19px] font-mono font-bold text-green-400 eq-transition text-center h-0 opacity-0 overflow-hidden mt-0 border-t border-slate-700/50 pt-3 leading-relaxed"></div>
+        </div>
+    </div>
+
+    <!-- 动态电离方程式写板 (新增：纯净物模式专用) -->
+    <div id="ionization-board" class="hidden absolute top-6 left-6 z-20 glass-panel px-6 py-4 rounded-2xl flex-col border-t-4 border-t-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.2)] min-w-[450px] max-w-[650px] transition-all duration-300">
+        <div class="flex items-center justify-between cursor-pointer group" onclick="toggleIonizationBoard()">
+            <div class="text-[14px] text-purple-300 font-bold uppercase tracking-widest flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                电离方程式
+            </div>
+            <div id="ion-toggle-icon" class="text-purple-400 transform transition-transform duration-300 text-lg" style="transform: rotate(-90deg);">▼</div>
+        </div>
+        <!-- 容器修改为允许交互的嵌套结构 -->
+        <div id="ion-content-wrapper" class="overflow-hidden transition-all duration-500 max-h-[0px] opacity-0">
+            <!-- 第一部分：微观电离过程展示 -->
+            <div id="ion-micro-view" class="flex items-center justify-between w-full mt-4 bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 shadow-inner">
+                <!-- Left: 溶解前 -->
+                <div id="micro-left" class="flex flex-col items-center w-[30%]"></div>
+                <!-- Middle: 过程箭头 -->
+                <div class="flex flex-col items-center w-[20%]">
+                    <span class="text-[10px] text-slate-400 mb-1">电离</span>
+                    <span class="text-purple-400 font-bold text-2xl animate-pulse leading-none">➔</span>
+                </div>
+                <!-- Right: 溶解后 -->
+                <div id="micro-right" class="flex justify-center w-[50%]"></div>
+            </div>
+
+            <!-- 按钮：展开符号表征 -->
+            <button id="btn-reveal-symbolic" onclick="revealSymbolicEquation()" class="mt-4 w-full py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/40 hover:to-pink-600/40 text-purple-200 font-bold tracking-widest text-sm rounded-lg transition-all border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.15)] cursor-pointer">
+                点击展开符号表征
+            </button>
+
+            <!-- 第二部分：符号表征 -->
+            <div id="ion-eq-text" class="text-[20px] font-mono font-bold text-white eq-transition text-center leading-relaxed h-0 opacity-0 overflow-hidden mt-0"></div>
+        </div>
+    </div>
+
+    <!-- 顶部提示浮层 -->
+    <div class="hidden md:flex absolute top-6 left-1/2 transform -translate-x-1/2 z-10 glass-panel px-5 py-2.5 rounded-full items-center gap-2 text-sm text-slate-300 shadow-lg pointer-events-none">
+        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+        左键拖动旋转视角，滚轮缩放，右键平移
+    </div>
+
+    <!-- 底部可弹降工作台 (Dock) -->
+    <!-- 负责水平居中的外壳 -->
+    <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-30 w-[96%] max-w-5xl pointer-events-none">
+        <!-- 负责垂直滑动的容器 -->
+        <div id="bottom-slide-container" class="flex flex-col items-center transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]" style="transform: translateY(0px);">
+            
+            <!-- 呼出/隐藏 把手 -->
+            <button onclick="toggleBottomPanel()" class="glass-panel px-8 py-1.5 rounded-t-xl border-b-0 border-cyan-500/30 text-cyan-400 hover:text-white flex items-center gap-2 cursor-pointer pointer-events-auto transition-colors shadow-[0_-5px_20px_rgba(0,0,0,0.3)] bg-slate-900/90 hover:bg-slate-800">
+                <span id="bottom-toggle-icon" class="text-[10px] transform transition-transform duration-300">▼</span>
+                <span id="bottom-toggle-text" class="text-[12px] font-bold tracking-widest uppercase">收起工作台</span>
+            </button>
+
+            <!-- 实际操作面板 (去掉了底边圆角，使其贴合屏幕底部，间距更加紧凑) -->
+            <div id="panel-bottom" class="glass-panel w-full p-3 md:p-4 rounded-t-2xl rounded-b-none flex flex-col md:flex-row gap-3 shadow-[0_-10px_40px_rgba(0,0,0,0.6)] pointer-events-auto border-b-0 pb-6 bg-slate-900/80">
+                
+                <!-- 左侧：模式切换与物质选择 -->
+                <div class="flex flex-col w-full md:w-[45%] border-r border-slate-700/50 pr-0 md:pr-3">
+                    <div class="flex items-end justify-between mb-2 border-b border-slate-700/50 pb-1">
+                        <div>
+                            <h1 class="text-lg font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300 tracking-tight leading-none">电解质反应实验台</h1>
+                        </div>
+                        <div class="flex gap-3 text-[13px] font-medium text-slate-400">
+                            <button class="tab-btn active pb-1" onclick="switchTab('pure')">纯净物探索</button>
+                            <button class="tab-btn pb-1" onclick="switchTab('mix')">溶液混合反应</button>
+                            <button class="tab-btn pb-1 text-purple-300 border-purple-400" onclick="switchTab('ionization')">电离微观解析</button>
+                        </div>
+                    </div>
+
+                    <!-- 纯净物列表 (更加紧凑) -->
+                    <div id="grid-pure" class="grid grid-cols-3 md:grid-cols-4 gap-1.5 mt-1">
+                        <button id="btn-sub-NaCl" class="sub-btn active py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('NaCl')">NaCl(易溶)</button>
+                        <button id="btn-sub-CuSO4" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('CuSO4')">CuSO₄(易溶)</button>
+                        <button id="btn-sub-BaOH2" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('BaOH2')">Ba(OH)₂(强碱)</button>
+                        <button id="btn-sub-BaSO4" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('BaSO4')">BaSO₄(难溶)</button>
+                        <button id="btn-sub-HCl" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('HCl')">HCl(共价)</button>
+                        <button id="btn-sub-NH3" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('NH3')">NH₃(弱碱)</button>
+                        <button id="btn-sub-Na2SO4" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('Na2SO4')">Na₂SO₄(易溶)</button>
+                        <button id="btn-sub-KNO3" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium" onclick="changeSubstance('KNO3')">KNO₃(易溶)</button>
+                        <button id="btn-sub-CH3COOH" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium border border-blue-400/30" onclick="changeSubstance('CH3COOH')">CH₃COOH(弱酸)</button>
+                        <button id="btn-sub-H2O" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium border border-cyan-500/20" onclick="changeSubstance('H2O')">H₂O(纯水)</button>
+                        <button id="btn-sub-Sucrose" class="sub-btn py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium border border-purple-500/20" onclick="changeSubstance('Sucrose')">蔗糖(非电解质)</button>
+                    </div>
+
+                    <!-- 混合反应列表 -->
+                    <div id="grid-mix" class="hidden grid grid-cols-1 gap-1.5 mt-1 h-[80px] overflow-y-auto custom-scrollbar pr-1">
+                        <button id="btn-sub-Mix1" class="sub-btn py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-sm font-medium flex items-center justify-between px-3" onclick="changeSubstance('Mix1')">
+                            <span>NaCl + CuSO₄</span> <span class="text-xs text-slate-500 bg-slate-900 px-1.5 rounded">无反应共存</span>
+                        </button>
+                        <button id="btn-sub-Mix3" class="sub-btn py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-sm font-medium flex items-center justify-between px-3" onclick="changeSubstance('Mix3')">
+                            <span>BaCl₂ + Na₂SO₄</span> <span class="text-xs text-yellow-400 bg-yellow-400/10 px-1.5 rounded border border-yellow-400/30">单沉淀(滤除旁观)</span>
+                        </button>
+                        <button id="btn-sub-Mix2" class="sub-btn py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-sm font-medium flex items-center justify-between px-3" onclick="changeSubstance('Mix2')">
+                            <span>CuSO₄ + Ba(OH)₂</span> <span class="text-xs text-orange-400 bg-orange-400/10 px-1.5 rounded border border-orange-400/30">双沉淀生成</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 中间：操作按钮区 -->
+                <div class="flex flex-col gap-2 w-full md:w-[25%] justify-center border-r border-slate-700/50 pr-0 md:pr-3">
+                    <div id="actions-pure" class="flex flex-col gap-1.5">
+                        <button id="btn-dissolve" class="w-full py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 text-white rounded-lg font-semibold transition-all shadow text-sm">投入水中 (溶解)</button>
+                        <button id="btn-melt" class="w-full py-1.5 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 text-white rounded-lg font-semibold transition-all shadow text-sm">高温加热 (熔融)</button>
+                    </div>
+                    <div id="actions-mix" class="hidden flex flex-col gap-1.5">
+                        <button id="btn-mix-action" class="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white rounded-lg font-bold transition-all shadow-lg text-[15px] animate-pulse shadow-emerald-500/30">
+                            ⬆️ 抽离隔板 (混合)
+                        </button>
+                    </div>
+                    <div id="actions-ionization" class="hidden flex flex-col gap-1.5">
+                        <button id="btn-play-ionization" onclick="startIonizationAnimation()" class="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 text-white rounded-lg font-bold transition-all shadow-lg text-[15px] animate-pulse shadow-purple-500/30">
+                            📝 展开电离方程式
+                        </button>
+                    </div>
+
+                    <button id="btn-efield" class="w-full py-1.5 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 text-white rounded-lg font-bold transition-all shadow text-sm border border-yellow-400/30">外加电场 (测导电)</button>
+                    
+                    <div class="grid grid-cols-2 gap-1.5 mt-0.5">
+                        <button id="btn-reset" class="py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-medium text-[11px]">恢复原态</button>
+                        <button id="btn-demo" class="py-1 bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 rounded font-medium text-[11px] border border-indigo-700/50">水合特写</button>
+                        <button id="btn-toggle-signs" class="col-span-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-medium text-[11px] border border-slate-600">显示/隐藏正负号</button>
+                    </div>
+                </div>
+
+                <!-- 右侧：动态讲解 -->
+                <div class="flex flex-col w-full md:w-[30%] bg-slate-950/60 p-3 rounded-xl border border-slate-700/50 justify-center">
+                    <div id="status-text" class="text-[13px] leading-relaxed text-slate-200 font-medium h-[4rem] overflow-y-auto custom-scrollbar pr-1">
+                        当前状态：固态离子晶体。阴阳离子被静电引力牢牢束缚在晶格中，距离固定，无法自由移动，绝不导电。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 电流表 UI 与实时导电率曲线 -->
+    <div id="ammeter-ui" class="hidden absolute top-6 right-6 z-10 glass-panel p-4 rounded-xl flex flex-col items-center border-t-4 border-t-yellow-500 shadow-xl pointer-events-none w-48">
+        <h3 class="text-[11px] font-bold text-slate-200 mb-1 uppercase tracking-wider flex items-center justify-between w-full">
+            <span>面板电流表</span>
+            <span id="charge-value" class="text-yellow-400 font-mono">0.0A</span>
+        </h3>
+        <div class="relative w-32 h-14 overflow-hidden border-b border-slate-500 mb-2">
+            <div class="absolute bottom-0 left-1/2 w-1 h-2 bg-slate-400 transform -translate-x-1/2"></div>
+            <div class="absolute bottom-0 left-1/4 w-0.5 h-1.5 bg-slate-500 transform -translate-x-1/2 rotate-[-45deg] origin-bottom"></div>
+            <div class="absolute bottom-0 left-3/4 w-0.5 h-1.5 bg-slate-500 transform -translate-x-1/2 rotate-[45deg] origin-bottom"></div>
+            <div id="ammeter-needle" class="absolute bottom-0 left-1/2 w-[3px] h-12 bg-gradient-to-t from-red-600 to-red-400 origin-bottom transition-transform duration-100 transform rotate-0 shadow-lg shadow-red-500/50" style="margin-left: -1.5px;"></div>
+            <div class="absolute bottom-0 left-1/2 w-2 h-2 bg-slate-300 rounded-full transform -translate-x-1/2 translate-y-1/2 z-10"></div>
+        </div>
+        <div class="w-full pt-2 border-t border-slate-700/50">
+            <h3 class="text-[9px] text-slate-400 mb-1 text-center">溶液导电性 (离子浓度) 曲线</h3>
+            <canvas id="chartCanvas"></canvas>
+        </div>
+    </div>
+    
+    <!-- 悬浮图例面板 (固定在右下角) -->
+    <div id="floating-legend" class="absolute bottom-[20vh] md:bottom-28 right-4 md:right-6 z-20 glass-panel p-4 rounded-xl flex flex-col pointer-events-none min-w-[140px] shadow-2xl border-t-4 border-t-indigo-500 transition-all duration-500">
+        <div class="text-[12px] text-indigo-300 font-bold border-b border-slate-600/50 pb-2 mb-3 flex items-center gap-2 uppercase tracking-widest">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            微粒图例
+        </div>
+        <div id="legend-container" class="flex flex-col gap-3 text-[11px] text-slate-200">
+            <!-- 动态图例生成 -->
+        </div>
+    </div>
+
+    <!-- 弹窗 -->
+    <div id="bond-popup" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 glass-panel p-6 rounded-2xl w-[90%] md:w-[28rem] flex-col gap-3 border-2 border-cyan-400/50 shadow-[0_0_50px_rgba(34,211,238,0.5)] z-[100] pointer-events-auto">
+        <h3 id="bond-popup-title" class="text-base font-bold text-cyan-300 flex items-center gap-2 border-b border-slate-600/50 pb-2">
+            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            微观揭秘：坚固的离子键
+        </h3>
+        <p id="bond-popup-desc" class="text-[14px] text-slate-200 leading-relaxed mt-1">
+            你点击了淡蓝色的连线，它代表着 <span class="text-cyan-400 font-bold">静电引力（离子键）</span>。正是这种强大的束缚力导致固态晶体中的离子无法自由移动，从而无法导电。必须在水中溶解或高温熔融，才能打破晶格！
+        </p>
+        <button onclick="document.getElementById('bond-popup').classList.add('hidden')" class="mt-2 w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white rounded-lg font-bold shadow">我知道了</button>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let ions = []; 
+        let ambientWater = []; 
+        let crystalBonds = []; 
+        let bondHitMeshes = []; 
+        let bondsGroup = new THREE.Group(); 
+        let demoGroup = new THREE.Group(); 
+        let attractionLines;
+        let extraSceneObjects = []; // 新增：用于跟踪并在重置时清理额外的UI文字标签
+        
+        let animationMode = 'IDLE'; 
+        let meltTemperature = 0;
+        let dissolveProgress = 0;
+        const clock = new THREE.Clock();
+
+        let isElectricFieldOn = false;
+        let electrodesGroup;
+        let glassTank, partitionMesh;
+        let showSigns = true;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        const chartData = new Array(80).fill(0);
+        let maxRecordedCharge = 1;
+
+        const ION_TYPES = {
+            'Na+': { radius: 0.45, color: 0x9333ea, sign: '+', name: 'Na⁺(钠离子)', type: 'Cation', charge: 1 },
+            'Cl-': { radius: 0.65, color: 0x22c55e, sign: '-', name: 'Cl⁻(氯离子)', type: 'Anion', charge: 1 },
+            'Cu2+': { radius: 0.50, color: 0x3b82f6, sign: '2+', name: 'Cu²⁺(铜离子)', type: 'Cation', charge: 2 },
+            'SO42-': { radius: 0.70, color: 0xf59e0b, sign: '2-', name: 'SO₄²⁻(硫酸根)', type: 'Anion', charge: 2 },
+            'Ba2+': { radius: 0.60, color: 0x14b8a6, sign: '2+', name: 'Ba²⁺(钡离子)', type: 'Cation', charge: 2 },
+            'OH-': { radius: 0.45, color: 0xfca5a5, sign: '-', name: 'OH⁻(氢氧根)', type: 'Anion', charge: 1 },
+            'H+': { radius: 0.45, color: 0xffffff, sign: '+', name: 'H⁺(水合氢离子 H₃O⁺)', type: 'Cation', charge: 1 },
+            'NH4+': { radius: 0.50, color: 0x6366f1, sign: '+', name: 'NH₄⁺(铵根)', type: 'Cation', charge: 1 },
+            'K+': { radius: 0.50, color: 0x8b5cf6, sign: '+', name: 'K⁺(钾离子)', type: 'Cation', charge: 1 },
+            'NO3-': { radius: 0.60, color: 0xec4899, sign: '-', name: 'NO₃⁻(硝酸根)', type: 'Anion', charge: 1 },
+            'CH3COO-': { radius: 0.65, color: 0x8b5cf6, sign: '-', name: 'CH₃COO⁻(醋酸根)', type: 'Anion', charge: 1 }
+        };
+
+        let currentMode = 'pure';
+        let currentSubstance = 'NaCl';
+        const CONFIGS = {
+            'NaCl': { name: '氯化钠', mode: 'pure', isSoluble: true, meltTemp: 801, c: 'Na+', a: 'Cl-', spacing: 1.5, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part">NaCl</span> <span class="text-slate-400">=</span> <span class="eq-part text-purple-400">Na⁺</span> + <span class="eq-part text-green-400">Cl⁻</span>' },
+            'CuSO4': { name: '硫酸铜', mode: 'pure', isSoluble: true, meltTemp: 560, c: 'Cu2+', a: 'SO42-', spacing: 1.6, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part">CuSO₄</span> <span class="text-slate-400">=</span> <span class="eq-part text-blue-400">Cu²⁺</span> + <span class="eq-part text-orange-400">SO₄²⁻</span>' },
+            'BaOH2': { name: '氢氧化钡', mode: 'pure', isSoluble: true, meltTemp: 78, c: 'Ba2+', a: 'OH-', spacing: 1.5, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part">Ba(OH)₂</span> <span class="text-slate-400">=</span> <span class="eq-part text-teal-400">Ba²⁺</span> + <span class="eq-part text-pink-400">2OH⁻</span>' },
+            'BaSO4': { name: '硫酸钡', mode: 'pure', isSoluble: false, meltTemp: 1580, c: 'Ba2+', a: 'SO42-', spacing: 1.6, latticeSize: 4, maxDissolve: 2, ionEq: '<span class="eq-part">BaSO₄</span> <span class="text-slate-400">=</span> <span class="eq-part text-teal-400">Ba²⁺</span> + <span class="eq-part text-orange-400">SO₄²⁻</span> <span class="text-[12px] text-slate-400 ml-2">(仅熔融态导电)</span>' },
+            'Na2SO4': { name: '硫酸钠', mode: 'pure', isSoluble: true, meltTemp: 884, c: 'Na+', a: 'SO42-', spacing: 1.6, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part">Na₂SO₄</span> <span class="text-slate-400">=</span> <span class="eq-part text-purple-400">2Na⁺</span> + <span class="eq-part text-orange-400">SO₄²⁻</span>' },
+            'KNO3': { name: '硝酸钾', mode: 'pure', isSoluble: true, meltTemp: 334, c: 'K+', a: 'NO3-', spacing: 1.5, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part">KNO₃</span> <span class="text-slate-400">=</span> <span class="eq-part text-purple-400">K⁺</span> + <span class="eq-part text-pink-400">NO₃⁻</span>' },
+            'HCl': { name: '氯化氢', mode: 'pure', type: 'covalent', isSoluble: true, meltTemp: -114, ionEq: '<span class="eq-part">HCl</span> <span class="text-slate-400">=</span> <span class="eq-part text-white">H⁺</span> + <span class="eq-part text-green-400">Cl⁻</span>' },
+            'NH3': { name: '氨气', mode: 'pure', type: 'weak_base', isSoluble: true, meltTemp: -77, ionEq: '<span class="eq-part">NH₃·H₂O</span> <span class="text-slate-400">⇌</span> <span class="eq-part text-indigo-400">NH₄⁺</span> + <span class="eq-part text-pink-400">OH⁻</span> <span class="text-[12px] text-slate-400 ml-2">(弱电解质)</span>' },
+            'CH3COOH': { name: '醋酸', mode: 'pure', type: 'weak_acid', isSoluble: true, meltTemp: 16, ionEq: '<span class="eq-part">CH₃COOH</span> <span class="text-slate-400">⇌</span> <span class="eq-part text-purple-400">CH₃COO⁻</span> + <span class="eq-part text-white">H⁺</span> <span class="text-[12px] text-slate-400 ml-2">(弱电解质)</span>' },
+            'H2O': { name: '水', mode: 'pure', type: 'water', isSoluble: true, meltTemp: 0, ionEq: '<span class="eq-part">H₂O</span> <span class="text-slate-400">⇌</span> <span class="eq-part text-white">H⁺</span> + <span class="eq-part text-pink-400">OH⁻</span> <span class="text-[12px] text-slate-400 ml-2">(极弱电解质)</span>' },
+            'Sucrose': { name: '蔗糖', mode: 'pure', isMolecularCrystal: true, isSoluble: true, meltTemp: 186, spacing: 2.2, latticeSize: 3, maxDissolve: Infinity, ionEq: '<span class="eq-part text-slate-400">蔗糖 (非电解质) 分子内为共价键，不发生电离</span>' },
+            
+            'Mix1': { 
+                name: 'NaCl + CuSO4', mode: 'mix', reacts: false, 
+                left: [{id: 'Na+', count: 12}, {id: 'Cl-', count: 12}],
+                right: [{id: 'Cu2+', count: 12}, {id: 'SO42-', count: 12}],
+                eq1: '<span class="eq-part">NaCl</span> + <span class="eq-part">CuSO₄</span> <span class="text-slate-400">→</span> <span class="text-slate-400">无明显现象 (不反应)</span>',
+                eq2: '<span class="eq-part">Na⁺</span> + <span class="eq-part">Cl⁻</span> + <span class="eq-part">Cu²⁺</span> + <span class="eq-part">SO₄²⁻</span> <span class="text-slate-400">→</span> 离子共存，自由移动',
+                eq3: '不生成沉淀/气体/水，反应不发生',
+                spectators: ['Na+', 'Cl-', 'Cu2+', 'SO42-'], reacting: []
+            },
+            'Mix3': { 
+                name: 'BaCl2 + Na2SO4', mode: 'mix', reacts: true, 
+                left: [{id: 'Ba2+', count: 12}, {id: 'Cl-', count: 24}],
+                right: [{id: 'Na+', count: 24}, {id: 'SO42-', count: 12}],
+                eq1: '<span class="eq-part">BaCl₂</span> + <span class="eq-part">Na₂SO₄</span> <span class="text-slate-400">→</span> <span class="eq-part text-white">BaSO₄↓</span> + <span class="eq-part">2NaCl</span>',
+                eq2: '<span class="eq-part text-cyan-300">Ba²⁺</span> + <span class="eq-part spectator-target" data-ion="Cl">2Cl⁻</span> + <span class="eq-part spectator-target" data-ion="Na">2Na⁺</span> + <span class="eq-part text-cyan-300">SO₄²⁻</span> <span class="text-slate-400">→</span> <span class="eq-part text-white">BaSO₄↓</span> + <span class="eq-part spectator-target" data-ion="Na">2Na⁺</span> + <span class="eq-part spectator-target" data-ion="Cl">2Cl⁻</span>',
+                eq3: '<span class="text-cyan-300">Ba²⁺ + SO₄²⁻</span> <span class="text-slate-400">→</span> <span class="text-white">BaSO₄↓</span>',
+                spectators: ['Na+', 'Cl-'], reacting: ['Ba2+', 'SO42-']
+            },
+            'Mix2': { 
+                name: 'CuSO4 + Ba(OH)2', mode: 'mix', reacts: true, 
+                left: [{id: 'Cu2+', count: 18}, {id: 'SO42-', count: 18}],
+                right: [{id: 'Ba2+', count: 18}, {id: 'OH-', count: 36}],
+                eq1: '<span class="eq-part">CuSO₄</span> + <span class="eq-part">Ba(OH)₂</span> <span class="text-slate-400">→</span> <span class="eq-part text-white">BaSO₄↓</span> + <span class="eq-part text-white">Cu(OH)₂↓</span>',
+                eq2: '<span class="eq-part text-cyan-300">Cu²⁺</span> + <span class="eq-part text-cyan-300">SO₄²⁻</span> + <span class="eq-part text-cyan-300">Ba²⁺</span> + <span class="eq-part text-cyan-300">2OH⁻</span> <span class="text-slate-400">→</span> <span class="eq-part text-white">BaSO₄↓</span> + <span class="eq-part text-white">Cu(OH)₂↓</span>',
+                eq3: '全员参与反应，无旁观离子，导电率大幅下降',
+                spectators: [], reacting: ['Cu2+', 'SO42-', 'Ba2+', 'OH-']
+            }
+        };
+
+        const oxygenMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.1 });
+        const hydrogenMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+        const glowOxygenMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.1, emissive: 0xef4444, emissiveIntensity: 0.7 });
+        const glowHydrogenMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.7 });
+        const bondMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.5 });
+        const precipBondMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+        const weakBondMat = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.3 }); 
+
+        function createTextSprite(text, fontSize = 64, baseScale = 1.5) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
+            const textWidth = ctx.measureText(text).width;
+            canvas.width = Math.max(128, textWidth + 80); 
+            canvas.height = 128; 
+            ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
+            ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 8;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false, transparent: true }));
+            sprite.scale.set(baseScale * (canvas.width / canvas.height), baseScale, baseScale);
+            return sprite;
+        }
+
+        function createIonMesh(ionId) {
+            const def = ION_TYPES[ionId];
+            const group = new THREE.Group();
+            let coreMesh; 
+
+            if (ionId === 'H+') {
+                coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), glowOxygenMat);
+                const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), glowHydrogenMat); h1.position.set(0.22, -0.1, 0.18);
+                const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), glowHydrogenMat); h2.position.set(-0.22, -0.1, 0.18);
+                const h3 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), glowHydrogenMat); h3.position.set(0, 0.22, -0.18);
+                group.add(coreMesh, h1, h2, h3);
+            } else if (ionId === 'OH-') {
+                coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), glowOxygenMat);
+                const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), glowHydrogenMat); h1.position.set(0.22, 0, 0.18);
+                group.add(coreMesh, h1);
+            } else if (ionId === 'NH4+') {
+                coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x3b82f6, roughness:0.2 }));
+                const pos = [[0.35,-0.2,0.25], [-0.35,-0.2,0.25], [0,0.4,0.25], [0,-0.1,-0.4]];
+                pos.forEach(p => {
+                    const h = new THREE.Mesh(new THREE.SphereGeometry(0.2, 32, 32), hydrogenMat);
+                    h.position.set(...p); group.add(h);
+                });
+                group.add(coreMesh);
+            } else if (ionId === 'CH3COO-') {
+                coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.2, metalness: 0.2, emissive: 0x000000 }));
+                const cMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.8 });
+                const hMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2 });
+                const oMat = new THREE.MeshPhysicalMaterial({ color: 0xef4444, roughness: 0.2 });
+                
+                const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), cMat); c1.position.set(-0.3, 0, 0);
+                const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), cMat); c2.position.set(0.3, 0, 0);
+                const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), hMat); h1.position.set(-0.5, 0.25, 0);
+                const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), hMat); h2.position.set(-0.5, -0.25, 0.25);
+                const h3 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), hMat); h3.position.set(-0.5, -0.25, -0.25);
+                const o1 = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), oMat); o1.position.set(0.6, 0.25, 0);
+                const o2 = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), oMat); o2.position.set(0.6, -0.25, 0);
+                
+                coreMesh.add(c1, c2, h1, h2, h3, o1, o2);
+                group.add(coreMesh);
+            } else {
+                coreMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(def.radius, 32, 32), 
+                    new THREE.MeshPhysicalMaterial({ color: def.color, roughness: 0.2, metalness: 0.2, emissive: 0x000000 })
+                );
+                group.add(coreMesh);
+            }
+            
+            group.userData = { materialNode: coreMesh };
+
+            const sprite = createTextSprite(def.sign, 85);
+            sprite.position.y = def.radius + 0.5;
+            sprite.isSignSprite = true; 
+            sprite.visible = showSigns;
+            group.add(sprite);
+            
+            return group;
+        }
+
+        function createSucroseMesh() {
+            const group = new THREE.Group();
+            const cMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.8 });
+            const oMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 });
+            const hMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+            
+            const addAtom = (t, x, y, z) => {
+                let r = 0.22, m = cMat;
+                if(t === 'O') { r = 0.20; m = oMat; }
+                if(t === 'H') { r = 0.14; m = hMat; }
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 16), m);
+                mesh.position.set(x, y, z);
+                group.add(mesh);
+            };
+            
+            addAtom('C', -0.3, 0.2, 0); addAtom('C', 0.3, 0.2, 0.1);
+            addAtom('C', -0.5, -0.2, 0.3); addAtom('C', 0.5, -0.3, -0.2);
+            addAtom('C', -0.2, -0.6, 0.4); addAtom('C', 0.2, -0.6, -0.3);
+            addAtom('C', -0.6, 0.5, -0.2); addAtom('C', 0.4, 0.6, 0.3);
+            addAtom('C', -0.8, 0.1, -0.4); addAtom('C', 0.7, 0.1, 0.5);
+            addAtom('C', -0.1, 0.6, 0.4); addAtom('C', 0.1, 0.7, -0.2);
+            addAtom('O', -0.9, 0.4, 0.1); addAtom('O', 0.9, 0.4, -0.1);
+            addAtom('O', -0.4, -0.9, 0.5); addAtom('O', 0.4, -0.9, -0.5);
+            addAtom('O', -1.1, -0.2, -0.2); addAtom('O', 1.1, -0.2, 0.4);
+            addAtom('O', 0, 1.0, 0); addAtom('O', -0.6, 0.9, -0.3);
+            addAtom('O', 0.6, 0.9, 0.4); addAtom('O', 0, 0, 0.4); 
+            addAtom('O', 0, 0, -0.4);
+            for(let i=0; i<22; i++) {
+                const phi = Math.acos(1 - 2 * (i + 0.5) / 22);
+                const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+                const r = 0.65 + (i % 3) * 0.05;
+                addAtom('H', r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+            }
+
+            const sprite = createTextSprite("C₁₂H₂₂O₁₁", 50, 1.8);
+            sprite.position.y = 1.1;
+            sprite.isSignSprite = true; 
+            sprite.visible = showSigns;
+            group.add(sprite);
+
+            return group;
+        }
+
+        function createHCl() {
+            const group = new THREE.Group();
+            group.add(new THREE.Mesh(new THREE.SphereGeometry(0.65, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x22c55e, roughness:0.2 })));
+            const h = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness:0.2 })); h.position.set(0.6,0,0);
+            group.add(h); return group;
+        }
+        function createNH3() {
+            const group = new THREE.Group();
+            group.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x3b82f6, roughness:0.2 })));
+            const pos = [[0.35,-0.2,0.25], [-0.35,-0.2,0.25], [0,0.4,0.25]];
+            pos.forEach(p => {
+                const h = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness:0.2 }));
+                h.position.set(...p); group.add(h);
+            });
+            return group;
+        }
+
+        function createCH3COOH() {
+            const group = new THREE.Group();
+            const cMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.8 });
+            const hMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2 });
+            const oMat = new THREE.MeshPhysicalMaterial({ color: 0xef4444, roughness: 0.2 });
+            
+            const addAtom = (mat, r, x, y, z) => {
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 16), mat);
+                mesh.position.set(x, y, z);
+                group.add(mesh);
+            };
+            
+            addAtom(cMat, 0.35, -0.3, 0, 0); 
+            addAtom(cMat, 0.35, 0.3, 0, 0);  
+            addAtom(hMat, 0.2, -0.6, 0.3, 0); 
+            addAtom(hMat, 0.2, -0.6, -0.3, 0.3); 
+            addAtom(hMat, 0.2, -0.6, -0.3, -0.3); 
+            addAtom(oMat, 0.3, 0.6, 0.3, 0); 
+            addAtom(oMat, 0.3, 0.6, -0.3, 0); 
+            addAtom(hMat, 0.2, 0.9, -0.3, 0); 
+            
+            // 隐藏醋酸分子的文字标签，使画面更清爽
+            // const sprite = createTextSprite("CH₃COOH", 45, 1.4);
+            // sprite.position.y = 1.0;
+            // sprite.isSignSprite = true; 
+            // sprite.visible = showSigns;
+            // group.add(sprite);
+
+            return group;
+        }
+
+        function createWaterMolecule() {
+            const group = new THREE.Group();
+            group.add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), oxygenMat));
+            const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), hydrogenMat); h1.position.set(0.22, 0, 0.18); 
+            const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), hydrogenMat); h2.position.set(-0.22, 0, 0.18);
+            group.add(h1, h2); return group;
+        }
+
+        function init() {
+            scene = new THREE.Scene(); scene.add(bondsGroup); scene.add(demoGroup);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(0, 8, 38);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(10, 20, 10); scene.add(dirLight);
+
+            // 设备初始化
+            electrodesGroup = new THREE.Group(); electrodesGroup.visible = false;
+            
+            glassTank = new THREE.Mesh(
+                new THREE.BoxGeometry(34, 20, 16),
+                new THREE.MeshPhysicalMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.12, transmission: 0.9, side: THREE.BackSide, depthWrite: false })
+            );
+            glassTank.position.y = 1;
+            electrodesGroup.add(glassTank, new THREE.LineSegments(new THREE.EdgesGeometry(glassTank.geometry), new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.25 })));
+
+            partitionMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 19.8, 15.8),
+                new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, transmission: 0.5, roughness: 0.1 })
+            );
+            partitionMesh.position.y = 1; partitionMesh.visible = false;
+            scene.add(partitionMesh);
+
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
+            const cathode = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 22, 16), rodMat); cathode.position.set(-15, 2, 0); 
+            const anode = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 22, 16), rodMat); anode.position.set(15, 2, 0); 
+            
+            const powerBox = new THREE.Mesh(new THREE.BoxGeometry(10, 4, 4), new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.5, roughness: 0.5 }));
+            powerBox.position.set(0, 18, 0);
+            
+            const pathLeft = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-15, 13, 0), new THREE.Vector3(-15, 18, 0), new THREE.Vector3(-5, 18, 0));
+            const pathRight = new THREE.QuadraticBezierCurve3(new THREE.Vector3(15, 13, 0), new THREE.Vector3(15, 18, 0), new THREE.Vector3(5, 18, 0));
+            electrodesGroup.add(cathode, anode, powerBox, 
+                new THREE.Mesh(new THREE.TubeGeometry(pathLeft, 20, 0.15, 8, false), new THREE.MeshBasicMaterial({ color: 0x3b82f6 })),
+                new THREE.Mesh(new THREE.TubeGeometry(pathRight, 20, 0.15, 8, false), new THREE.MeshBasicMaterial({ color: 0xef4444 }))
+            );
+            scene.add(electrodesGroup);
+
+            attractionLines = new THREE.LineSegments(
+                new THREE.BufferGeometry(),
+                new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending })
+            );
+            scene.add(attractionLines);
+
+            buildScene();
+
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+            
+            document.getElementById('btn-dissolve').addEventListener('click', startDissolving);
+            document.getElementById('btn-melt').addEventListener('click', startMelting);
+            document.getElementById('btn-mix-action').addEventListener('click', startMixing);
+            document.getElementById('btn-reset').addEventListener('click', () => resetSimulation(true));
+            document.getElementById('btn-efield').addEventListener('click', toggleElectricField);
+            document.getElementById('btn-demo').addEventListener('click', showHydrationDemo);
+            
+            document.getElementById('btn-toggle-signs').addEventListener('click', () => {
+                showSigns = !showSigns;
+                // 遍历整个 3D 场景及其所有子层级，瞬间精准定位并切换所有的正负号标签
+                scene.traverse((child) => {
+                    if (child.isSignSprite) {
+                        child.visible = showSigns;
+                    }
+                });
+            });
+
+            updateLegend();
+            
+            // 确保窗口尺寸变化时，如果面板是收起状态，依然保持在正确的Y轴偏移
+            window.addEventListener('resize', () => {
+                const container = document.getElementById('bottom-slide-container');
+                if (container.style.transform !== 'translateY(0px)') {
+                    const panelHeight = document.getElementById('panel-bottom').offsetHeight;
+                    container.style.transform = `translateY(${panelHeight}px)`;
+                }
+            });
+
+            animate();
+        }
+
+        
+        // 【新增】控制底部工作台弹上弹下的函数
+        window.toggleBottomPanel = function() {
+            const container = document.getElementById('bottom-slide-container');
+            const icon = document.getElementById('bottom-toggle-icon');
+            const text = document.getElementById('bottom-toggle-text');
+            const panel = document.getElementById('panel-bottom');
+            
+            // 检查当前状态（如果 Y 为 0，说明是展开状态）
+            if (container.style.transform === 'translateY(0px)' || container.style.transform === '') {
+                // 收起：向下滑动面板本身的高度
+                const panelHeight = panel.offsetHeight;
+                container.style.transform = `translateY(${panelHeight}px)`;
+                icon.style.transform = 'rotate(180deg)';
+                text.innerText = '展开工作台';
+            } else {
+                // 展开：恢复到 0
+                container.style.transform = 'translateY(0px)';
+                icon.style.transform = 'rotate(0deg)';
+                text.innerText = '收起工作台';
+            }
+        };
+
+        window.switchTab = function(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('grid-pure').classList.add('hidden');
+            document.getElementById('grid-mix').classList.add('hidden');
+            document.getElementById('actions-pure').classList.add('hidden');
+            document.getElementById('actions-mix').classList.add('hidden');
+            document.getElementById('actions-ionization').classList.add('hidden');
+
+            if(mode === 'pure') {
+                document.getElementById('grid-pure').classList.remove('hidden');
+                document.getElementById('actions-pure').classList.remove('hidden');
+                changeSubstance('NaCl');
+            } else if (mode === 'mix') {
+                document.getElementById('grid-mix').classList.remove('hidden');
+                document.getElementById('actions-mix').classList.remove('hidden');
+                changeSubstance('Mix3'); 
+            } else if (mode === 'ionization') {
+                document.getElementById('grid-pure').classList.remove('hidden');
+                document.getElementById('actions-ionization').classList.remove('hidden');
+                changeSubstance('NaCl');
+            }
+        }
+
+        window.changeSubstance = function(subKey) {
+            currentSubstance = subKey;
+            document.querySelectorAll('.sub-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-sub-${subKey}`).classList.add('active');
+            
+            updateLegend();
+            resetSimulation(true); 
+        }
+
+        function updateLegend() {
+            const container = document.getElementById('legend-container');
+            container.innerHTML = '';
+            const cfg = CONFIGS[currentSubstance];
+            
+            const addLegendItem = (ionId) => {
+                const def = ION_TYPES[ionId];
+                container.innerHTML += `<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.3)]" style="background-color: #${def.color.toString(16).padStart(6,'0')}"></div><span class="text-[11px] font-medium tracking-wide">${def.name}</span></div>`;
+            };
+
+            if (cfg.mode === 'pure') {
+                if (cfg.isMolecularCrystal) {
+                    container.innerHTML += `<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-slate-600 shadow-[0_0_8px_rgba(255,255,255,0.3)]"></div><span class="text-[11px] font-medium tracking-wide">蔗糖分子 (非电解质)</span></div>`;
+                } else {
+                    if (cfg.c) addLegendItem(cfg.c);
+                    if (cfg.a) addLegendItem(cfg.a);
+                    if (cfg.type === 'covalent') { addLegendItem('H+'); addLegendItem('Cl-'); }
+                    if (cfg.type === 'weak_base') { addLegendItem('NH4+'); addLegendItem('OH-'); }
+                    if (cfg.type === 'weak_acid') { addLegendItem('H+'); addLegendItem('CH3COO-'); }
+                    if (cfg.type === 'water') { addLegendItem('H+'); addLegendItem('OH-'); }
+                }
+            } else {
+                const uniqueIons = new Set();
+                cfg.left.forEach(i => uniqueIons.add(i.id));
+                cfg.right.forEach(i => uniqueIons.add(i.id));
+                uniqueIons.forEach(id => addLegendItem(id));
+            }
+            
+            container.innerHTML += `
+                <div class="flex items-center gap-2 opacity-80 mt-1 pt-2 border-t border-slate-700/50">
+                    <div class="flex items-center transform scale-75"><div class="w-2.5 h-2.5 rounded-full bg-slate-100 relative left-1 z-10 shadow-[0_0_5px_#fff]"></div><div class="w-4 h-4 rounded-full bg-red-500 z-0 shadow-[0_0_5px_#f00]"></div><div class="w-2.5 h-2.5 rounded-full bg-slate-100 relative right-1 z-10 shadow-[0_0_5px_#fff]"></div></div>
+                    <span class="text-[11px] font-medium tracking-wide">H₂O分子</span>
+                </div>
+            `;
+        }
+
+        function buildScene() {
+            ions.forEach(ion => scene.remove(ion.group)); ions = [];
+            crystalBonds = []; bondHitMeshes = [];
+            while(bondsGroup.children.length > 0) bondsGroup.remove(bondsGroup.children[0]);
+            attractionLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+            
+            // 新增：清理上一模式遗留的文字标签（如：水分子作用 ➔）
+            extraSceneObjects.forEach(obj => scene.remove(obj));
+            extraSceneObjects = [];
+            
+            const cfg = CONFIGS[currentSubstance];
+            
+            if (currentMode === 'pure') {
+                partitionMesh.visible = false;
+                if (!cfg.type) {
+                    const offset = (cfg.latticeSize - 1) * cfg.spacing / 2;
+                    const centerIdx = (cfg.latticeSize - 1) / 2;
+
+                    for (let x = 0; x < cfg.latticeSize; x++) {
+                        for (let y = 0; y < cfg.latticeSize; y++) {
+                            for (let z = 0; z < cfg.latticeSize; z++) {
+                                let group;
+                                let isNonElectrolyte = false;
+                                let radius = 0.5;
+                                let ionId = 'Sucrose';
+
+                                if (cfg.isMolecularCrystal) {
+                                    group = createSucroseMesh();
+                                    isNonElectrolyte = true;
+                                    radius = 1.0; 
+                                } else {
+                                    const isCation = (x + y + z) % 2 === 0;
+                                    ionId = isCation ? cfg.c : cfg.a;
+                                    group = createIonMesh(ionId);
+                                    radius = ION_TYPES[ionId].radius;
+                                }
+                                
+                                const posX = x * cfg.spacing - offset; const posY = y * cfg.spacing - offset; const posZ = z * cfg.spacing - offset;
+                                group.position.set(posX, posY, posZ); scene.add(group);
+
+                                ions.push({
+                                    id: ionId, def: cfg.isMolecularCrystal ? { type: 'NonElectrolyte', radius: radius } : ION_TYPES[ionId], 
+                                    group: group, signSprite: cfg.isMolecularCrystal ? group.children[group.children.length-1] : group.children.find(c => c.isSignSprite),
+                                    basePos: new THREE.Vector3(posX, posY, posZ), velocity: new THREE.Vector3(),
+                                    isDetached: false, shellGathering: false, hydrationShell: [], hydrationShellInfo: [],
+                                    gridDist: Math.abs(x - centerIdx) + Math.abs(y - centerIdx) + Math.abs(z - centerIdx),
+                                    isNonElectrolyte: isNonElectrolyte
+                                });
+                            }
+                        }
+                    }
+                    ions.sort((a, b) => b.gridDist - a.gridDist);
+                    let dissolvedCount = 0;
+                    ions.forEach(ion => { ion.isDissolvable = (dissolvedCount++ < cfg.maxDissolve); });
+                    
+                    for(let i=0; i<ions.length; i++) {
+                        for(let j=i+1; j<ions.length; j++) {
+                            if(Math.abs(ions[i].basePos.distanceTo(ions[j].basePos) - cfg.spacing) < 0.1) {
+                                if (!cfg.isMolecularCrystal && ions[i].def.type === ions[j].def.type) continue; 
+
+                                const bGroup = new THREE.Group();
+                                const isWeak = cfg.isMolecularCrystal;
+                                const bMesh = new THREE.Mesh(
+                                    new THREE.CylinderGeometry(isWeak ? 0.06 : 0.12, isWeak ? 0.06 : 0.12, cfg.spacing, 8), 
+                                    isWeak ? weakBondMat.clone() : bondMat.clone()
+                                );
+                                const hitMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, cfg.spacing, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+                                hitMesh.userData = { isBond: true, isWeak: isWeak, originalMesh: bMesh };
+                                bGroup.position.copy(new THREE.Vector3().addVectors(ions[i].basePos, ions[j].basePos).multiplyScalar(0.5));
+                                bGroup.lookAt(ions[j].basePos); bMesh.rotation.set(Math.PI/2, 0, 0); hitMesh.rotation.set(Math.PI/2, 0, 0);
+                                bGroup.add(bMesh, hitMesh); bondsGroup.add(bGroup);
+                                crystalBonds.push({ mesh: bMesh }); bondHitMeshes.push(hitMesh);
+                            }
+                        }
+                    }
+                } else {
+                    let moleculeCount = cfg.type === 'weak_acid' ? 50 : (cfg.type === 'water' ? 60 : 27); // 弱酸和水特意生成多一点来体现“极少部分电离”
+                        for (let i = 0; i < moleculeCount; i++) {
+                            let group;
+                            if (cfg.type === 'covalent') group = createHCl();
+                            else if (cfg.type === 'weak_acid') group = createCH3COOH();
+                            else if (cfg.type === 'water') { group = createWaterMolecule(); group.scale.set(1.5, 1.5, 1.5); }
+                            else group = createNH3();
+                            const posX = (Math.random()-0.5)*16; const posY = (Math.random()-0.5)*10; const posZ = (Math.random()-0.5)*10;
+                            group.position.set(posX, posY, posZ);
+                            group.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                            scene.add(group);
+                            ions.push({
+                                id: cfg.type === 'weak_acid' ? 'CH3COOH' : (cfg.type === 'water' ? 'H2O' : (cfg.type === 'covalent' ? 'HCl' : 'NH3')), 
+                                group: group, basePos: group.position.clone(),
+                                velocity: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1),
+                                isDetached: true, isMolecule: true, shellGathering: false, hydrationShell: [], hydrationShellInfo: []
+                            });
+                        }
+                    }
+            } else if (currentMode === 'mix') {
+                partitionMesh.visible = true; partitionMesh.position.y = 1;
+                document.body.classList.add('underwater');
+                
+                const spawnIons = (list, minX, maxX) => {
+                    list.forEach(item => {
+                        for(let i=0; i<item.count; i++) {
+                            const group = createIonMesh(item.id);
+                            const posX = minX + Math.random()*(maxX - minX);
+                            const posY = -8 + Math.random()*16;
+                            const posZ = -6 + Math.random()*12;
+                            group.position.set(posX, posY, posZ);
+                            scene.add(group);
+                            
+                            const def = ION_TYPES[item.id];
+                            const radius = def.radius + 0.35;
+                            const shell = [];
+                            if (item.id !== 'OH-') {
+                                [new THREE.Vector3(radius,0,0), new THREE.Vector3(-radius,0,0), new THREE.Vector3(0,radius,0), new THREE.Vector3(0,-radius,0)].forEach(localPos => {
+                                    const water = createWaterMolecule();
+                                    group.add(water); water.position.copy(localPos);
+                                    const dummy = new THREE.Object3D(); dummy.position.copy(localPos); dummy.lookAt(0,0,0);
+                                    water.quaternion.copy(dummy.quaternion);
+                                    if (def.type === 'Cation') water.rotateY(Math.PI);
+                                    shell.push(water);
+                                });
+                            }
+
+                            ions.push({
+                                id: item.id, def: def, group: group, signSprite: group.children.find(c=>c.isSignSprite),
+                                basePos: new THREE.Vector3(posX, posY, posZ),
+                                velocity: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1),
+                                isDetached: true, hydrationShell: shell, isLocked: false, isNonElectrolyte: false
+                            });
+                        }
+                    });
+                };
+                
+                spawnIons(cfg.left, -15, -1.5);
+                spawnIons(cfg.right, 1.5, 15);
+            } else if (currentMode === 'ionization') {
+                partitionMesh.visible = false;
+                document.body.classList.add('underwater');
+                
+                const beforeX = -7, afterX = 7;
+
+                // 中间箭头与标签 (新增：将其推入 extraSceneObjects 以便统一清理)
+                const arrow = createTextSprite("水分子作用 ➔", 50, 2);
+                arrow.position.set(0, 0, 0); arrow.material.color.setHex(0x22d3ee); scene.add(arrow); extraSceneObjects.push(arrow);
+                
+                const lblBefore = createTextSprite("【电离前】 晶格或分子", 40, 1.5);
+                lblBefore.position.set(beforeX, -4, 0); lblBefore.material.color.setHex(0x94a3b8); scene.add(lblBefore); extraSceneObjects.push(lblBefore);
+                
+                const lblAfter = createTextSprite("【电离后】 自由水合微粒", 40, 1.5);
+                lblAfter.position.set(afterX, -4, 0); lblAfter.material.color.setHex(0x94a3b8); scene.add(lblAfter); extraSceneObjects.push(lblAfter);
+
+                // --- 1. 构建电离前 (左侧) ---
+                let beforeGroup = new THREE.Group();
+                beforeGroup.position.set(beforeX, 0, 0);
+                scene.add(beforeGroup);
+                
+                if (cfg.isMolecularCrystal || cfg.type === 'weak_acid' || cfg.type === 'covalent' || cfg.type === 'weak_base' || cfg.type === 'water') {
+                    let unitGroup;
+                    if (cfg.isMolecularCrystal) unitGroup = createSucroseMesh();
+                    else if (cfg.type === 'covalent') unitGroup = createHCl();
+                    else if (cfg.type === 'weak_acid') unitGroup = createCH3COOH();
+                    else if (cfg.type === 'weak_base') unitGroup = createNH3();
+                    else if (cfg.type === 'water') { unitGroup = createWaterMolecule(); unitGroup.scale.set(1.5, 1.5, 1.5); }
+                    beforeGroup.add(unitGroup);
+                    ions.push({ group: beforeGroup, basePos: new THREE.Vector3(beforeX,0,0), velocity: new THREE.Vector3(), isMolecule: true });
+                } else {
+                    // 【优化】：生成完整的微型晶格，取代原先单一的离子对
+                    const offset = (cfg.latticeSize - 1) * cfg.spacing / 2;
+                    let latticeNodes = [];
+                    
+                    for (let x = 0; x < cfg.latticeSize; x++) {
+                        for (let y = 0; y < cfg.latticeSize; y++) {
+                            for (let z = 0; z < cfg.latticeSize; z++) {
+                                const isCation = (x + y + z) % 2 === 0;
+                                const ionId = isCation ? cfg.c : cfg.a;
+                                const ionMesh = createIonMesh(ionId);
+                                
+                                const posX = x * cfg.spacing - offset; 
+                                const posY = y * cfg.spacing - offset; 
+                                const posZ = z * cfg.spacing - offset;
+                                ionMesh.position.set(posX, posY, posZ);
+                                beforeGroup.add(ionMesh);
+                                
+                                latticeNodes.push({ mesh: ionMesh, type: ION_TYPES[ionId].type });
+                            }
+                        }
+                    }
+                    
+                    // 为晶格内的相邻离子添加离子键
+                    for (let i = 0; i < latticeNodes.length; i++) {
+                        for (let j = i + 1; j < latticeNodes.length; j++) {
+                            if (Math.abs(latticeNodes[i].mesh.position.distanceTo(latticeNodes[j].mesh.position) - cfg.spacing) < 0.1) {
+                                if (latticeNodes[i].type !== latticeNodes[j].type) { // 确保是不同种电荷相连
+                                    const bMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, cfg.spacing, 8), bondMat.clone());
+                                    bMesh.position.copy(new THREE.Vector3().addVectors(latticeNodes[i].mesh.position, latticeNodes[j].mesh.position).multiplyScalar(0.5));
+                                    bMesh.lookAt(latticeNodes[j].mesh.position); 
+                                    bMesh.rotateX(Math.PI/2);
+                                    beforeGroup.add(bMesh);
+                                }
+                            }
+                        }
+                    }
+                    
+                    beforeGroup.scale.set(0.6, 0.6, 0.6); // 缩小0.6倍，完美适应左侧半屏空间
+                    ions.push({ group: beforeGroup, basePos: new THREE.Vector3(beforeX,0,0), velocity: new THREE.Vector3(), isUnit: true });
+                }
+
+                // --- 2. 构建电离后 (右侧) ---
+                if (cfg.isMolecularCrystal) {
+                    const afterGroup = createSucroseMesh();
+                    afterGroup.position.set(afterX, 0, 0); scene.add(afterGroup);
+                    ions.push({ group: afterGroup, basePos: new THREE.Vector3(afterX,0,0), velocity: new THREE.Vector3(), isMolecule: true });
+                } else {
+                    let cId = cfg.c || (cfg.type === 'weak_base' ? 'NH4+' : 'H+');
+                    let aId = cfg.a || (cfg.type === 'covalent' ? 'Cl-' : (cfg.type === 'weak_acid' ? 'CH3COO-' : 'OH-'));
+                    
+                    const addHydratedIon = (id, isCation, offset) => {
+                        const ion = createIonMesh(id);
+                        ion.position.copy(new THREE.Vector3(afterX, 0, 0).add(offset));
+                        scene.add(ion);
+                        
+                        if (id !== 'OH-') {
+                            const r = ION_TYPES[id].radius + 0.35;
+                            [new THREE.Vector3(r,0,0), new THREE.Vector3(-r,0,0), new THREE.Vector3(0,r,0), new THREE.Vector3(0,-r,0)].forEach(localPos => {
+                                const water = createWaterMolecule();
+                                ion.add(water); water.position.copy(localPos);
+                                const dummy = new THREE.Object3D(); dummy.position.copy(localPos); dummy.lookAt(0,0,0);
+                                water.quaternion.copy(dummy.quaternion);
+                                if (isCation || id === 'NH4+') water.rotateY(Math.PI);
+                            });
+                        }
+                        ions.push({ id: id, def: ION_TYPES[id], group: ion, basePos: ion.position.clone(), velocity: new THREE.Vector3(), isDetached: true, jiggle: true });
+                    };
+
+                    addHydratedIon(cId, true, new THREE.Vector3(-1.5, 1.5, 0));
+                    addHydratedIon(aId, false, new THREE.Vector3(1.5, -1.5, 0));
+                    
+                    if (currentSubstance === 'BaOH2') {
+                        addHydratedIon(cfg.a, false, new THREE.Vector3(1.5, 1.5, 0));
+                    } else if (currentSubstance === 'Na2SO4') {
+                        addHydratedIon(cfg.c, true, new THREE.Vector3(-1.5, -1.5, 0));
+                    }
+                }
+                
+                spawnAmbientWater(12);
+            }
+        }
+
+        function updateChart(currentCharge) {
+            const targetCharge = currentCharge;
+            const lastCharge = chartData[chartData.length - 1];
+            const smoothedCharge = lastCharge + (targetCharge - lastCharge) * 0.1;
+            
+            chartData.shift();
+            chartData.push(smoothedCharge);
+            if (smoothedCharge > maxRecordedCharge) maxRecordedCharge = smoothedCharge * 1.2;
+
+            const canvas = document.getElementById('chartCanvas');
+            if(canvas) {
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width = canvas.offsetWidth;
+                const h = canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, w, h);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#38bdf8'; 
+                ctx.lineWidth = 2;
+                ctx.lineJoin = 'round';
+                for(let i=0; i<chartData.length; i++) {
+                    const x = (i / (chartData.length - 1)) * w;
+                    const y = h - (chartData[i] / Math.max(maxRecordedCharge, 1)) * h * 0.9;
+                    if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                const gradient = ctx.createLinearGradient(0, 0, 0, h);
+                gradient.addColorStop(0, 'rgba(56,189,248,0.4)');
+                gradient.addColorStop(1, 'rgba(56,189,248,0.0)');
+                ctx.lineTo(w, h); ctx.lineTo(0, h);
+                ctx.fillStyle = gradient; ctx.fill();
+            }
+
+            const needle = document.getElementById('ammeter-needle');
+            const chargeTxt = document.getElementById('charge-value');
+            if (needle && chargeTxt) {
+                if (isElectricFieldOn && smoothedCharge > 5) {
+                    const ratio = Math.min(smoothedCharge / 100, 1.0); 
+                    const baseAngle = 15 + ratio * 45; 
+                    needle.style.transform = `rotate(${baseAngle + (Math.random()-0.5)*3}deg)`;
+                    chargeTxt.innerText = (ratio * 2.5).toFixed(2) + 'A';
+                    chargeTxt.className = 'text-green-400 font-mono';
+                } else { 
+                    needle.style.transform = 'rotate(0deg)'; 
+                    chargeTxt.innerText = '0.00A';
+                    chargeTxt.className = 'text-slate-500 font-mono';
+                }
+            }
+        }
+        // 新增：动态方程式推演更新函数
+        window.toggleEquationBoard = function() {
+            const wrapper = document.getElementById('eq-content-wrapper');
+            const icon = document.getElementById('eq-toggle-icon');
+            // 调整了 maxHeight 的判断值，以适应字号变大后的容器
+            if (!wrapper.style.maxHeight || wrapper.style.maxHeight === '600px') {
+                wrapper.style.maxHeight = '0px'; 
+                wrapper.style.opacity = '0';
+                icon.style.transform = 'rotate(-90deg)';
+            } else {
+                wrapper.style.maxHeight = '600px'; 
+                wrapper.style.opacity = '1';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        };
+
+        function updateEquationBoard(stage) {
+            const board = document.getElementById('equation-board');
+            const eq1 = document.getElementById('eq-step1');
+            const eq2 = document.getElementById('eq-step2');
+            const eq3 = document.getElementById('eq-step3');
+            const cfg = CONFIGS[currentSubstance];
+
+            if (currentMode !== 'mix') { 
+                if (animationMode !== 'IONIZATION_PLAYING' && currentMode !== 'ionization') {
+                    board.classList.add('hidden'); 
+                }
+                return; 
+            }
+            board.classList.remove('hidden');
+            board.classList.remove('border-t-purple-500', 'shadow-[0_0_30px_rgba(168,85,247,0.2)]');
+            board.classList.add('border-t-cyan-400', 'shadow-[0_0_30px_rgba(34,211,238,0.2)]');
+            
+            document.getElementById('eq-content-wrapper').style.maxHeight = '600px';
+            document.getElementById('eq-content-wrapper').style.opacity = '1';
+            document.getElementById('eq-toggle-icon').style.transform = 'rotate(0deg)';
+
+            if (stage === 1) {
+                eq1.innerHTML = cfg.eq1;
+                eq2.style.height = '0'; eq2.style.opacity = '0'; eq2.style.marginTop = '0';
+                eq3.style.height = '0'; eq3.style.opacity = '0'; eq3.style.marginTop = '0';
+            } else if (stage === 2) {
+                eq2.innerHTML = cfg.eq2;
+                // 因字号调大，高度也做了相应微调以防止被裁剪
+                eq2.style.height = '32px'; eq2.style.opacity = '1'; eq2.style.marginTop = '8px';
+            } else if (stage === 3) {
+                const targets = eq2.querySelectorAll('.spectator-target');
+                targets.forEach(t => t.classList.add('spectator-crossed'));
+                
+                setTimeout(() => {
+                    eq3.innerHTML = cfg.eq3;
+                    eq3.style.height = '42px'; eq3.style.opacity = '1'; eq3.style.marginTop = '8px';
+                }, 800);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta(); controls.update();
+            const cfg = CONFIGS[currentSubstance];
+
+            if (animationMode === 'DEMO') {
+                demoGroup.children.forEach(group => { 
+                    if (group.isIonGroup || group.isMoleculeGroup) { group.rotation.y += 0.01; group.rotation.x += 0.005; } 
+                });
+            }
+
+            if (animationMode === 'DISSOLVING' || currentMode === 'mix' || animationMode === 'IONIZATION_PLAYING') {
+                ambientWater.forEach(wm => {
+                    if (!wm.isAssigned) {
+                        wm.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02));
+                        if(wm.group.position.x > 16) wm.velocity.x -= 0.05;
+                        if(wm.group.position.x < -16) wm.velocity.x += 0.05;
+                        if(wm.group.position.y > 9) wm.velocity.y -= 0.05;
+                        if(wm.group.position.y < -9) wm.velocity.y += 0.05;
+                        
+                        wm.velocity.multiplyScalar(0.96); wm.group.position.add(wm.velocity);
+                        wm.group.rotateX(wm.rotSpeed.x); wm.group.rotateY(wm.rotSpeed.y);
+                    }
+                });
+            }
+
+            if (currentMode === 'mix' && animationMode !== 'IDLE') {
+                if (animationMode === 'MIXING' && partitionMesh.position.y < 25) {
+                    partitionMesh.position.y += delta * 15;
+                }
+                
+                const linesPos = [];
+
+                ions.forEach(ion => {
+                    if (ion.isLocked) return;
+                    
+                    if (animationMode === 'PRECIPITATING' && ion.targetPos) {
+                        let diff = new THREE.Vector3().subVectors(ion.targetPos, ion.group.position);
+                        let dist = diff.length();
+                        ion.velocity.add(diff.normalize().multiplyScalar(0.005));
+                        ion.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015)); 
+                        ion.velocity.multiplyScalar(0.90);
+                        
+                        if (dist < 0.3) {
+                            ion.group.position.copy(ion.targetPos);
+                            ion.velocity.set(0,0,0);
+                            ion.isLocked = true;
+                            ion.hydrationShell.forEach(water => {
+                                const worldPos = new THREE.Vector3();
+                                water.getWorldPosition(worldPos);
+                                scene.add(water);
+                                water.position.copy(worldPos);
+                                ambientWater.push({
+                                    group: water, isAssigned: false,
+                                    velocity: new THREE.Vector3((Math.random()-0.5)*0.3, 0.3+Math.random()*0.3, (Math.random()-0.5)*0.3),
+                                    rotSpeed: new THREE.Vector3(0.1, 0.1, 0)
+                                });
+                            });
+                            ion.hydrationShell = [];
+                        }
+
+                        const matNode = ion.group.userData.materialNode;
+                        if(matNode && matNode.material) {
+                            if (cfg.spectators && cfg.spectators.includes(ion.id)) {
+                                matNode.material.transparent = true;
+                                matNode.material.opacity = THREE.MathUtils.lerp(matNode.material.opacity, 0.15, 0.05);
+                                matNode.material.roughness = 1.0;
+                                if(ion.signSprite) ion.signSprite.material.opacity = THREE.MathUtils.lerp(ion.signSprite.material.opacity, 0.05, 0.05);
+                            } else if (cfg.reacting && cfg.reacting.includes(ion.id)) {
+                                matNode.material.emissive.setHex(ion.def.color);
+                                matNode.material.emissiveIntensity = THREE.MathUtils.lerp(matNode.material.emissiveIntensity, 0.6, 0.05);
+                                
+                                if(ion.def.type === 'Cation' && !ion.isLocked && Math.random() > 0.3) {
+                                    let closestDist = 8, closestPos = null;
+                                    ions.forEach(other => {
+                                        if(other.def.type === 'Anion' && !other.isLocked && cfg.reacting.includes(other.id)) {
+                                            let d = ion.group.position.distanceTo(other.group.position);
+                                            if(d < closestDist) { closestDist = d; closestPos = other.group.position; }
+                                        }
+                                    });
+                                    if(closestPos) linesPos.push(ion.group.position.x, ion.group.position.y, ion.group.position.z, closestPos.x, closestPos.y, closestPos.z);
+                                }
+                            }
+                        }
+
+                    } else {
+                        let speed = animationMode === 'MIXING' ? 0.06 : 0.015;
+                        ion.velocity.add(new THREE.Vector3((Math.random()-0.5)*speed, (Math.random()-0.5)*speed, (Math.random()-0.5)*speed));
+                        
+                        const boundX = 16.5, boundY = 9, boundZ = 7.5;
+                        if(animationMode === 'REACTION_IDLE') {
+                            if(ion.basePos.x < 0 && ion.group.position.x > -1.5) ion.velocity.x -= 0.05; 
+                            if(ion.basePos.x > 0 && ion.group.position.x < 1.5) ion.velocity.x += 0.05;
+                        }
+                        if(ion.group.position.x > boundX) ion.velocity.x -= 0.05;
+                        if(ion.group.position.x < -boundX) ion.velocity.x += 0.05;
+                        if(ion.group.position.y > boundY) ion.velocity.y -= 0.05;
+                        if(ion.group.position.y < -boundY) ion.velocity.y += 0.05;
+                        if(ion.group.position.z > boundZ) ion.velocity.z -= 0.05;
+                        if(ion.group.position.z < -boundZ) ion.velocity.z += 0.05;
+                        
+                        ions.forEach(other => {
+                            if(other !== ion && !other.isLocked) {
+                                let dVec = new THREE.Vector3().subVectors(ion.group.position, other.group.position);
+                                let dSq = dVec.lengthSq();
+                                if(dSq > 0.1 && dSq < 4.0) ion.velocity.add(dVec.normalize().multiplyScalar(0.01 / Math.sqrt(dSq)));
+                            }
+                        });
+                        ion.velocity.multiplyScalar(0.95);
+                    }
+                    ion.group.position.add(ion.velocity);
+                });
+                
+                attractionLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(linesPos, 3));
+            }
+
+            if (animationMode === 'DISSOLVING' && currentMode === 'pure') {
+                dissolveProgress += delta;
+                let newIons = [];
+
+                ions.forEach(ion => {
+                    if (ion.isMolecule) {
+                        ion.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02));
+                        if(ion.group.position.length() > 15) ion.velocity.add(ion.group.position.clone().normalize().multiplyScalar(-0.02));
+                        ion.velocity.multiplyScalar(0.95); ion.group.position.add(ion.velocity);
+                        ion.group.rotateX(0.02); ion.group.rotateY(0.02);
+
+                        // --- 新增：未电离的醋酸分子逐渐变暗，沉入背景，突出动态平衡的视觉效果 ---
+                        if (ion.id === 'CH3COOH' && dissolveProgress > 1.5) {
+                            ion.group.children.forEach(c => {
+                                if (c.material) {
+                                    c.material.transparent = true;
+                                    c.material.opacity = THREE.MathUtils.lerp(c.material.opacity, 0.15, 0.02);
+                                }
+                            });
+                        }
+                        
+                        // --- 新增：未电离的水分子变得微透明，呈现宏观流体的视觉背景 ---
+                        if (ion.id === 'H2O' && dissolveProgress > 1.5) {
+                            ion.group.children.forEach(c => {
+                                if (c.material) {
+                                    c.material.transparent = true;
+                                    c.material.opacity = THREE.MathUtils.lerp(c.material.opacity, 0.5, 0.02);
+                                }
+                            });
+                        }
+
+                        if (dissolveProgress > 2.0 && !ion.ionized) {
+                            if (ion.id === 'HCl') {
+                                ion.ionized = true; scene.remove(ion.group);
+                                newIons.push(
+                                    { id: 'H+', def: ION_TYPES['H+'], group: createIonMesh('H+'), velocity: new THREE.Vector3(0.1,0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false },
+                                    { id: 'Cl-', def: ION_TYPES['Cl-'], group: createIonMesh('Cl-'), velocity: new THREE.Vector3(-0.1,-0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false }
+                                );
+                                newIons[newIons.length-2].group.position.copy(ion.group.position);
+                                newIons[newIons.length-1].group.position.copy(ion.group.position).add(new THREE.Vector3(1,0,0));
+                            } else if (ion.id === 'NH3' && Math.random() < 0.05) { 
+                                ion.ionized = true; scene.remove(ion.group);
+                                newIons.push(
+                                    { id: 'NH4+', def: ION_TYPES['NH4+'], group: createIonMesh('NH4+'), velocity: new THREE.Vector3(0.1,0,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false },
+                                    { id: 'OH-', def: ION_TYPES['OH-'], group: createIonMesh('OH-'), velocity: new THREE.Vector3(-0.1,0,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false }
+                                );
+                                newIons[newIons.length-2].group.position.copy(ion.group.position);
+                                newIons[newIons.length-1].group.position.copy(ion.group.position).add(new THREE.Vector3(1,0,0));
+                            } else if (ion.id === 'CH3COOH' && Math.random() < 0.05) { 
+                                // 动态平衡：限制同时存在的离子对数量，为复合留出空间
+                                let ch3cooCount = ions.filter(i => i.id === 'CH3COO-' && !i.ionized).length + newIons.filter(i => i.id === 'CH3COO-').length;
+                                if (ch3cooCount < 4) { // 稍微增加一点数量让动态平衡更明显
+                                    ion.ionized = true; scene.remove(ion.group);
+                                    newIons.push(
+                                        { id: 'H+', def: ION_TYPES['H+'], group: createIonMesh('H+'), velocity: new THREE.Vector3(0.1,0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false, recombining: false },
+                                        { id: 'CH3COO-', def: ION_TYPES['CH3COO-'], group: createIonMesh('CH3COO-'), velocity: new THREE.Vector3(-0.1,-0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false, recombining: false }
+                                    );
+                                    newIons[newIons.length-2].group.position.copy(ion.group.position);
+                                    newIons[newIons.length-1].group.position.copy(ion.group.position).add(new THREE.Vector3(1,0,0));
+                                }
+                            } else if (ion.id === 'H2O' && Math.random() < 0.02) { 
+                                // 水分子极弱电离动态平衡：控制 H+ 和 OH- 非常稀少
+                                let ohCount = ions.filter(i => i.id === 'OH-' && !i.ionized).length + newIons.filter(i => i.id === 'OH-').length;
+                                if (ohCount < 3) { 
+                                    ion.ionized = true; scene.remove(ion.group);
+                                    newIons.push(
+                                        { id: 'H+', def: ION_TYPES['H+'], group: createIonMesh('H+'), velocity: new THREE.Vector3(0.1,0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false, recombining: false },
+                                        { id: 'OH-', def: ION_TYPES['OH-'], group: createIonMesh('OH-'), velocity: new THREE.Vector3(-0.1,-0.1,0), isDetached: true, isDissolvable: true, basePos: ion.group.position.clone(), isNonElectrolyte: false, recombining: false }
+                                    );
+                                    newIons[newIons.length-2].group.position.copy(ion.group.position);
+                                    newIons[newIons.length-1].group.position.copy(ion.group.position).add(new THREE.Vector3(1,0,0));
+                                }
+                            }
+                        }
+                    } else if (ion.isDissolvable) {
+                        if (!ion.isDetached) {
+                            const detachTime = 2.0 + (5 - ion.gridDist) * 1.0; 
+                            if (dissolveProgress > detachTime - 1.5 && !ion.shellGathering) {
+                                ion.shellGathering = true; ion.gatherTime = dissolveProgress;
+                                ion.hydrationShellInfo = [];
+                                if (ion.id !== 'OH-') {
+                                    const rOffset = ion.isNonElectrolyte ? 1.2 : ion.def.radius+0.35;
+                                    const targetPositions = [new THREE.Vector3(rOffset,0,0), new THREE.Vector3(-rOffset,0,0), new THREE.Vector3(0,rOffset,0), new THREE.Vector3(0,-rOffset,0)];
+                                    targetPositions.forEach(pos => {
+                                        let bestWater = ambientWater.find(aw => !aw.isAssigned);
+                                        if(!bestWater) {
+                                            const water = createWaterMolecule();
+                                            water.position.set(Math.random() > 0.5 ? 18 : -18, (Math.random()-0.5)*15, (Math.random()-0.5)*10);
+                                            scene.add(water);
+                                            bestWater = { group: water, isAssigned: false, velocity: new THREE.Vector3(), rotSpeed: new THREE.Vector3() };
+                                            ambientWater.push(bestWater);
+                                        }
+                                        bestWater.isAssigned = true; 
+                                        ion.hydrationShellInfo.push({ aw: bestWater, start: bestWater.group.position.clone(), targetLocal: pos });
+                                    });
+                                }
+                            }
+
+                            if (ion.shellGathering) {
+                                let localT = Math.min((dissolveProgress - ion.gatherTime) / 1.5, 1.0);
+                                let easeT = localT * localT * (3 - 2 * localT);
+                                ion.hydrationShellInfo.forEach(info => {
+                                    info.aw.group.position.lerpVectors(info.start, ion.basePos.clone().add(info.targetLocal), easeT);
+                                    info.aw.group.lookAt(ion.group.position);
+                                    if(ion.isNonElectrolyte || ion.def.type === 'Cation') info.aw.group.rotateY(Math.PI);
+                                });
+                                ion.group.position.copy(ion.basePos).add(new THREE.Vector3((Math.random()-0.5)*0.1*easeT, 0, 0));
+                                
+                                if (dissolveProgress > detachTime) {
+                                    ion.isDetached = true;
+                                    ion.velocity = ion.basePos.clone().normalize().multiplyScalar(0.15);
+                                    ion.hydrationShellInfo.forEach(info => {
+                                        ion.group.add(info.aw.group); info.aw.group.position.copy(info.targetLocal);
+                                        const dummy = new THREE.Object3D(); dummy.position.copy(info.targetLocal); dummy.lookAt(0,0,0);
+                                        info.aw.group.quaternion.copy(dummy.quaternion);
+                                        if (ion.isNonElectrolyte || ion.def.type === 'Cation') info.aw.group.rotateY(Math.PI);
+                                        ion.hydrationShell.push(info.aw.group);
+                                    });
+                                }
+                            }
+                        } else {
+                            ion.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015));
+                            if (ion.isNonElectrolyte) { ion.group.rotation.x += 0.005; ion.group.rotation.y += 0.005; }
+                            if (ion.group.position.length() > 20) ion.velocity.add(ion.group.position.clone().normalize().multiplyScalar(-0.01));
+                            
+                            // --- 新增：动态平衡复合逻辑 (针对游离的弱电解质离子对) ---
+                            if ((currentSubstance === 'CH3COOH' || currentSubstance === 'H2O') && dissolveProgress > 3.0 && !ion.ionized) {
+                                if (ion.recombining && ion.targetIon) {
+                                    let dir = new THREE.Vector3().subVectors(ion.targetIon.group.position, ion.group.position);
+                                    let dist = dir.length();
+                                    ion.velocity.add(dir.normalize().multiplyScalar(0.015)); // 相互吸引
+                                    
+                                    // 相遇后瞬间复合
+                                    if (dist < 0.6 && ion.id === 'H+') {
+                                        ion.ionized = true; ion.targetIon.ionized = true; // 标记删除
+                                        scene.remove(ion.group); scene.remove(ion.targetIon.group);
+                                        
+                                        // 生成一个新的分子（弱酸或水）
+                                        let molGroup;
+                                        let targetId;
+                                        if (currentSubstance === 'CH3COOH') {
+                                            molGroup = createCH3COOH(); targetId = 'CH3COOH';
+                                        } else {
+                                            molGroup = createWaterMolecule(); molGroup.scale.set(1.5, 1.5, 1.5); targetId = 'H2O';
+                                        }
+                                        molGroup.position.copy(ion.group.position);
+                                        molGroup.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                                        newIons.push({
+                                            id: targetId, group: molGroup, basePos: molGroup.position.clone(),
+                                            velocity: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1),
+                                            isDetached: true, isMolecule: true, shellGathering: false, hydrationShell: [], hydrationShellInfo: []
+                                        });
+                                    }
+                                } else if (ion.id === 'H+' && Math.random() < 0.02) { // 随机触发复合意图
+                                    let targetType = currentSubstance === 'CH3COOH' ? 'CH3COO-' : 'OH-';
+                                    let freeTarget = ions.find(i => i.id === targetType && !i.recombining && !i.ionized);
+                                    if (freeTarget) {
+                                        ion.recombining = true; freeTarget.recombining = true;
+                                        ion.targetIon = freeTarget; freeTarget.targetIon = ion;
+                                    }
+                                }
+                            }
+
+                            ion.velocity.multiplyScalar(0.95); ion.group.position.add(ion.velocity);
+                        }
+                    } else {
+                        ion.group.position.copy(ion.basePos).add(new THREE.Vector3((Math.random()-0.5)*0.03, (Math.random()-0.5)*0.03, (Math.random()-0.5)*0.03));
+                    }
+                });
+
+                if(newIons.length > 0) {
+                    newIons.forEach(ni => scene.add(ni.group));
+                    ions = ions.filter(i => !i.ionized).concat(newIons);
+                }
+            }
+
+            if (animationMode === 'HEATING' && currentMode === 'pure') {
+                meltTemperature += delta * 600; 
+                const vibration = Math.min(meltTemperature / (cfg.meltTemp * 0.5), 0.3);
+                ions.forEach(ion => {
+                    if (ion.basePos) {
+                        ion.group.position.copy(ion.basePos).add(
+                            new THREE.Vector3((Math.random()-0.5)*vibration, (Math.random()-0.5)*vibration, (Math.random()-0.5)*vibration)
+                        );
+                    }
+                });
+
+                if (meltTemperature >= cfg.meltTemp) {
+                    animationMode = 'MOLTEN';
+                    if (cfg.isMolecularCrystal) {
+                        updateStatusText("已达熔点！进入熔融态，分子间作用力被破坏，分子能够紧密流转滑动，但依然没有离子产生。", "text-purple-400 font-bold");
+                    } else if (cfg.type === 'water') {
+                        updateStatusText("已达熔点！固态冰融化为液态水。水分子能够自由滑动流转，但依然极少发生电离。", "text-blue-300 font-bold");
+                    } else {
+                        updateStatusText("已达熔点！进入熔融态，巨大的热能克服了晶格能，离子解开束缚，能够紧密流转滑动。", "text-red-400 font-bold");
+                    }
+                    ions.forEach(ion => {
+                        ion.velocity = new THREE.Vector3((Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05);
+                        ion.isDetached = true;
+                    });
+                }
+            } else if (animationMode === 'MOLTEN' && currentMode === 'pure') {
+                const SAFE_DIST = cfg.isMolecularCrystal ? 2.0 : 1.3;
+                ions.forEach(ion => {
+                    ion.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.04, (Math.random()-0.5)*0.04, (Math.random()-0.5)*0.04));
+                    
+                    if (!isElectricFieldOn) {
+                        // 未通电时，熔融离子聚拢在中心区域
+                        if (ion.group.position.length() > 5) ion.velocity.add(ion.group.position.clone().normalize().multiplyScalar(-0.02));
+                    } else {
+                        // 通电时，解除X轴向心约束，允许向两极移动，仅约束YZ轴以防飞出视口
+                        if (Math.abs(ion.group.position.y) > 5) ion.velocity.y -= Math.sign(ion.group.position.y) * 0.02;
+                        if (Math.abs(ion.group.position.z) > 5) ion.velocity.z -= Math.sign(ion.group.position.z) * 0.02;
+                    }
+                    
+                    ion.velocity.multiplyScalar(0.85); 
+                    ion.group.position.add(ion.velocity);
+                });
+                for (let i = 0; i < ions.length; i++) {
+                    for (let j = i + 1; j < ions.length; j++) {
+                        let diff = new THREE.Vector3().subVectors(ions[i].group.position, ions[j].group.position);
+                        let dist = diff.length();
+                        if (dist < SAFE_DIST) {
+                            let correction = diff.normalize().multiplyScalar((SAFE_DIST - dist) * 0.5);
+                            ions[i].group.position.add(correction);
+                            ions[j].group.position.sub(correction);
+                        }
+                    }
+                }
+            }
+
+            let freeCharge = 0; 
+            
+            ions.forEach(ion => {
+                if (ion.isDetached && !ion.isLocked && !ion.isMolecule && !ion.isNonElectrolyte) {
+                    freeCharge += (ion?.def?.charge || 1);
+                    
+                    if (isElectricFieldOn) {
+                        // 稍微增大电场引力。由于熔融状态下微粒间摩擦阻力较大，给予更大推力确保到达碳棒
+                        const force = (animationMode === 'MOLTEN' ? 0.015 : 0.006) * (ion?.def?.charge || 1);
+                        if (ion?.def?.type === 'Cation') { 
+                            if (ion.group.position.x > -14.0) ion.velocity.x -= force;
+                            else ion.velocity.x *= 0.5; // 在碳棒附近滞留
+                        } else { 
+                            if (ion.group.position.x < 14.0) ion.velocity.x += force;
+                            else ion.velocity.x *= 0.5; // 在碳棒附近滞留
+                        }
+                    }
+                } else if (isElectricFieldOn && !ion.isDetached && !ion.isMolecule && !ion.isNonElectrolyte) {
+                    // 原有：固体中晶格内的电场微震动
+                    const t = ion?.def?.type === 'Cation' ? -0.1 : 0.1;
+                    if(ion.basePos) ion.group.position.copy(ion.basePos).add(new THREE.Vector3(t + (Math.random()-0.5)*0.05, 0, 0));
+                }
+            });
+
+            updateChart(freeCharge);
+            
+            if (currentMode === 'ionization') {
+                ions.forEach(i => {
+                    if (i.isMolecule || i.isUnit) {
+                        i.group.rotation.x += 0.005; i.group.rotation.y += 0.005;
+                        i.group.position.copy(i.basePos).add(new THREE.Vector3(0, Math.sin(clock.getElapsedTime() * 2) * 0.2, 0));
+                    }
+                    if (i.jiggle) {
+                        i.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015, (Math.random()-0.5)*0.015));
+                        let dist = i.group.position.distanceTo(i.basePos);
+                        if (dist > 1.5) i.velocity.add(i.basePos.clone().sub(i.group.position).normalize().multiplyScalar(0.01));
+                        i.velocity.multiplyScalar(0.95);
+                        i.group.position.add(i.velocity);
+                    }
+                });
+                ambientWater.forEach(aw => {
+                    aw.velocity.add(new THREE.Vector3((Math.random()-0.5)*0.01, (Math.random()-0.5)*0.01, (Math.random()-0.5)*0.01));
+                    if (aw.group.position.length() > 10) aw.velocity.add(aw.group.position.clone().normalize().multiplyScalar(-0.005));
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function spawnAmbientWater(count) {
+            ambientWater.forEach(wm => scene.remove(wm.group)); ambientWater = [];
+            document.body.classList.add('underwater');
+            for(let i=0; i<count; i++) {
+                const water = createWaterMolecule();
+                water.position.set((Math.random()-0.5)*30, (Math.random()-0.5)*18, (Math.random()-0.5)*14);
+                water.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                scene.add(water);
+                ambientWater.push({
+                    group: water, isAssigned: false,
+                    velocity: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1),
+                    rotSpeed: new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1)
+                });
+            }
+        }
+
+        function startDissolving() {
+            if (animationMode !== 'IDLE') resetSimulation(false);
+            animationMode = 'DISSOLVING';
+            dissolveProgress = 0;
+            bondsGroup.visible = false;
+            
+            const cfg = CONFIGS[currentSubstance];
+            if (cfg.type !== 'water') {
+                spawnAmbientWater(25);
+            } else {
+                document.body.classList.add('underwater');
+            }
+            
+            if (cfg.isMolecularCrystal) {
+                updateStatusText("正在溶解：水分子包围蔗糖分子，破坏了分子间作用力。蔗糖以【完整分子】形式脱离晶体进入水中，分子内部共价键未破裂，没有离子生成！", "text-purple-300 font-bold");
+            } else if (cfg.type === 'water') {
+                updateStatusText("正在观察纯水：绝大多数水分子保持共价键结合的分子状态。只有极其微小的一部分发生自偶电离，产生 H⁺ 和 OH⁻，并处于动态平衡。", "text-blue-300 font-bold");
+            } else if (cfg.isSoluble === false) {
+                updateStatusText("晶格能极大，水分子极难将其拆散！仅有最外层极少数的离子能被拉出解离，绝大部分仍保持固体颗粒状。", "text-orange-400 font-bold");
+            } else if (cfg.type === 'weak_acid') {
+                updateStatusText("正在溶解：大量醋酸分子扩散到水中。由于它是弱电解质，仅有极少数发生电离（明亮），且生成的离子会不断重新结合成醋酸分子（变暗），形成【动态平衡】！", "text-blue-300 font-bold");
+            } else {
+                updateStatusText("正在溶解：溶液中原有的水分子做布朗运动靠近晶体。合力将离子从晶格中【拉出】。形成水合离子后在水中自由移动。", "text-cyan-300");
+            }
+        }
+
+        function startMelting() {
+            if (animationMode !== 'IDLE') resetSimulation(false);
+            animationMode = 'HEATING';
+            meltTemperature = currentSubstance === 'H2O' ? -50 : 0;
+            bondsGroup.visible = false;
+            if (CONFIGS[currentSubstance].isMolecularCrystal) {
+                updateStatusText(`持续加热中... (目标熔点: ${CONFIGS[currentSubstance].meltTemp}℃)。热运动加剧，准备克服分子间作用力。`, "text-purple-400");
+            } else if (CONFIGS[currentSubstance].type === 'water') {
+                updateStatusText(`持续加热中... (目标熔点: ${CONFIGS[currentSubstance].meltTemp}℃)。冰的晶体结构准备解体。`, "text-blue-300");
+            } else {
+                updateStatusText(`持续加热中... (目标熔点: ${CONFIGS[currentSubstance].meltTemp}℃)。热运动加剧，准备克服晶格能。`, "text-orange-400");
+            }
+        }
+
+        function assignPrecipitateTargets() {
+            const cfg = CONFIGS[currentSubstance];
+            
+            const assignLatticeTargets = (cations, anions, spacing, basePos, ratioStr) => {
+                let allIons = [...cations, ...anions];
+                let count = allIons.length;
+                let size = Math.ceil(Math.pow(count, 1/3)); 
+                let slots = [];
+                let cIndex = 0; let aIndex = 0;
+                
+                for(let y=0; y<size && slots.length < count; y++){
+                    for(let x=0; x<size && slots.length < count; x++){
+                        for(let z=0; z<size && slots.length < count; z++){
+                            let isCation = false;
+                            if (ratioStr === '1:1') isCation = (x+y+z) % 2 === 0;
+                            else if (ratioStr === '1:2') isCation = (slots.length % 3 === 0);
+                            
+                            if (isCation && cIndex >= cations.length) isCation = false;
+                            if (!isCation && aIndex >= anions.length) isCation = true;
+
+                            let targetPos = new THREE.Vector3(
+                                basePos.x + (x - size/2.0 + 0.5) * spacing,
+                                basePos.y + y * spacing,
+                                basePos.z + (z - size/2.0 + 0.5) * spacing
+                            );
+                            
+                            if (isCation && cIndex < cations.length) {
+                                cations[cIndex].targetPos = targetPos;
+                                cIndex++; slots.push(targetPos);
+                            } else if (!isCation && aIndex < anions.length) {
+                                anions[aIndex].targetPos = targetPos;
+                                aIndex++; slots.push(targetPos);
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (cfg.name === 'CuSO4 + Ba(OH)2') {
+                let ba = ions.filter(i => i.id === 'Ba2+' && !i.isLocked);
+                let so4 = ions.filter(i => i.id === 'SO42-' && !i.isLocked);
+                let cu = ions.filter(i => i.id === 'Cu2+' && !i.isLocked);
+                let oh = ions.filter(i => i.id === 'OH-' && !i.isLocked);
+                assignLatticeTargets(ba, so4, 1.6, new THREE.Vector3(-4, -9, 0), '1:1');
+                assignLatticeTargets(cu, oh, 1.4, new THREE.Vector3(4, -9, 0), '1:2');
+            } else if (cfg.reacting && cfg.reacting.length >= 2) {
+                let cations = ions.filter(i => i.id === cfg.reacting[0] && !i.isLocked);
+                let anions = ions.filter(i => i.id === cfg.reacting[1] && !i.isLocked);
+                let ratio = cations.length === anions.length ? '1:1' : '1:2';
+                assignLatticeTargets(cations, anions, 1.5, new THREE.Vector3(0, -9.5, 0), ratio);
+            }
+        }
+
+        function startMixing() {
+            if (animationMode !== 'REACTION_IDLE') return;
+            animationMode = 'MIXING';
+            const cfg = CONFIGS[currentSubstance];
+            
+            updateEquationBoard(2); 
+
+            if (cfg.reacts) {
+                updateStatusText("【混合溶解】方程裂开为全离子方程式。混合后，反应离子身上泛起光晕，旁观离子逐渐暗淡并透明。", "text-cyan-300 font-bold");
+                setTimeout(() => {
+                    assignPrecipitateTargets();
+                    animationMode = 'PRECIPITATING';
+                    updateEquationBoard(3); 
+                    updateStatusText("【生成沉淀】反应离子结合沉降，导电率随之下降。方程中没有参与反应的旁观离子被红色叉号删去，留下净离子方程式！", "text-red-400 font-bold");
+                }, 3500); 
+            } else {
+                updateStatusText("【自由混合与共存】所有离子自由游荡，未发现生成沉淀、气体或水的组合，因此只发生了物理混合，不发生化学反应。", "text-slate-400");
+                setTimeout(() => updateEquationBoard(3), 2000);
+            }
+        }
+
+        function toggleElectricField() {
+            isElectricFieldOn = !isElectricFieldOn; electrodesGroup.visible = isElectricFieldOn; 
+            const btn = document.getElementById('btn-efield');
+            if (isElectricFieldOn) {
+                document.getElementById('ammeter-ui').classList.remove('hidden');
+                btn.innerText = '停止供电 (断开电路)'; btn.classList.replace('from-yellow-600', 'from-red-600');
+            } else {
+                document.getElementById('ammeter-ui').classList.add('hidden');
+                btn.innerText = '外加电场 (测导电)'; btn.classList.replace('from-red-600', 'from-yellow-600');
+            }
+        }
+
+        function showHydrationDemo() {
+            resetSimulation(false); animationMode = 'DEMO'; bondsGroup.visible = false; partitionMesh.visible = false;
+            ions.forEach(ion => ion.group.visible = false);
+            if (isElectricFieldOn) toggleElectricField(); 
+            while(demoGroup.children.length > 0) demoGroup.remove(demoGroup.children[0]);
+            
+            const cfg = CONFIGS[currentSubstance];
+
+            if (cfg.isMolecularCrystal) {
+                const group = createSucroseMesh(); group.isMoleculeGroup = true;
+                group.scale.set(1.5, 1.5, 1.5);
+                const r = 1.3;
+                [new THREE.Vector3(r,0,0), new THREE.Vector3(-r,0.5,0), new THREE.Vector3(0,r,0), new THREE.Vector3(0,-r,0), new THREE.Vector3(0,0,r)].forEach(pos => {
+                    const water = createWaterMolecule(); group.add(water); water.position.copy(pos);
+                    const dummy = new THREE.Object3D(); dummy.position.copy(pos); dummy.lookAt(0,0,0);
+                    water.quaternion.copy(dummy.quaternion); water.rotateY(Math.PI);
+                });
+                demoGroup.add(group);
+                updateStatusText(`【特写模式】：蔗糖分子通过表面的极性基团(-OH)与水分子形成氢键而溶解。由于整个分子保持完整，没有解离出离子，因此是【非电解质】，不能导电！`, "text-purple-300 font-bold");
+                camera.position.set(0, 0, 14); controls.target.set(0,0,0);
+                return;
+            } else if (cfg.type === 'weak_acid') {
+                const group = createCH3COOH(); group.isMoleculeGroup = true;
+                group.scale.set(1.5, 1.5, 1.5);
+                demoGroup.add(group);
+                updateStatusText(`【特写模式】：醋酸是典型的弱酸，绝大多数情况下它维持着原有的分子共价键结构，仅有极其微小的概率发生 O-H 键断裂释放出氢离子。`, "text-blue-300 font-bold");
+                camera.position.set(0, 0, 14); controls.target.set(0,0,0);
+                return;
+            } else if (cfg.type === 'water') {
+                const group = createWaterMolecule(); group.isMoleculeGroup = true;
+                group.scale.set(2.5, 2.5, 2.5);
+                demoGroup.add(group);
+                updateStatusText(`【特写模式】：水分子通过极性共价键结合。通常状态下它极难发生断裂，只有极少数（约10⁻⁷）会自偶电离出 H⁺ 和 OH⁻，因此纯水极难导电。`, "text-cyan-300 font-bold");
+                camera.position.set(0, 0, 14); controls.target.set(0,0,0);
+                return;
+            }
+
+            const defC = ION_TYPES[cfg.c || 'Na+'];
+            const defA = ION_TYPES[cfg.a || 'Cl-'];
+
+            const createDemoIon = (ionId, def, xPos, isCation) => {
+                const group = new THREE.Group(); group.isIonGroup = true; group.position.set(xPos, 0, 0);
+                group.add(new THREE.Mesh(new THREE.SphereGeometry(def.radius, 32, 32), new THREE.MeshPhysicalMaterial({ color: def.color, roughness: 0.2, metalness: 0.2 })));
+                group.add(createTextSprite(def.sign, 85));
+                const r = def.radius + 0.35;
+                if (ionId !== 'OH-') {
+                    [new THREE.Vector3(r,0,0), new THREE.Vector3(-r,0,0), new THREE.Vector3(0,r,0), new THREE.Vector3(0,-r,0), new THREE.Vector3(0,0,r), new THREE.Vector3(0,0,-r)].forEach(pos => {
+                        const water = createWaterMolecule(); group.add(water); water.position.copy(pos);
+                        const dummy = new THREE.Object3D(); dummy.position.copy(pos); dummy.lookAt(0,0,0);
+                        water.quaternion.copy(dummy.quaternion); if(isCation) water.rotateY(Math.PI);
+                    });
+                    
+                    // 将说明文字直接添加到 demoGroup，而不是添加到旋转的 ion group 中
+                    const labelSprite = createTextSprite(isCation ? "阳离子(氧端朝内)" : "阴离子(氢端朝内)", 48, 2.5);
+                    labelSprite.position.set(xPos, -(r + 1.5), 0);
+                    demoGroup.add(labelSprite);
+                    
+                } else {
+                     const labelSprite = createTextSprite("氢氧根离子(无水合层)", 48, 2.5);
+                     labelSprite.position.set(xPos, -(r + 1.5), 0);
+                     demoGroup.add(labelSprite);
+                }
+                
+                // 将离子组本身加入 demoGroup
+                demoGroup.add(group);
+                
+                return group;
+            };
+
+            const ionCId = cfg.c || 'Na+';
+            const ionAId = cfg.a || 'Cl-';
+            // 创建离子时，它们内部会将自己和对应的静态标签放入 demoGroup
+            createDemoIon(ionCId, defC, -4.5, true);
+            createDemoIon(ionAId, defA, 4.5, false);
+            
+            updateStatusText(`【特写模式】：请仔细观察水分子极性！左侧阳离子吸引带负电的氧端(红)；右侧阴离子吸引带正电的氢端(白)。`, "text-indigo-300");
+            camera.position.set(0, 0, 14); controls.target.set(0,0,0);
+        }
+
+        window.startIonizationAnimation = function() {
+            if (animationMode === 'IONIZATION_PLAYING') return;
+            animationMode = 'IONIZATION_PLAYING';
+            
+            const board = document.getElementById('equation-board');
+            board.classList.remove('hidden');
+            board.classList.remove('border-t-cyan-400', 'shadow-[0_0_30px_rgba(34,211,238,0.2)]');
+            board.classList.add('border-t-purple-500', 'shadow-[0_0_30px_rgba(168,85,247,0.2)]');
+            
+            const wrapper = document.getElementById('eq-content-wrapper');
+            wrapper.style.maxHeight = '600px'; wrapper.style.opacity = '1';
+            document.getElementById('eq-toggle-icon').style.transform = 'rotate(0deg)';
+            
+            const cfg = CONFIGS[currentSubstance];
+            const eq1 = document.getElementById('eq-step1');
+            const eq2 = document.getElementById('eq-step2');
+            const eq3 = document.getElementById('eq-step3');
+            
+            let preEq = cfg.isMolecularCrystal ? '蔗糖分子' : cfg.name;
+            eq1.innerHTML = `<span class="eq-part text-slate-400 font-bold">${preEq} 的电离方程式：</span>`;
+            eq2.style.height = '0'; eq2.style.opacity = '0'; eq2.style.marginTop = '0';
+            eq3.style.height = '0'; eq3.style.opacity = '0'; eq3.style.marginTop = '0';
+            
+            setTimeout(() => {
+                if (cfg.isMolecularCrystal) {
+                    updateStatusText("蔗糖分子完整地分散在水中，分子内部共价键未断裂，不产生自由移动的离子。", "text-purple-300 font-bold");
+                    eq2.innerHTML = `<span class="eq-part text-slate-400">蔗糖 = 蔗糖 (非电解质，不发生电离)</span>`;
+                } else if (cfg.type === 'weak_acid' || cfg.type === 'weak_base') {
+                    if (cfg.type === 'weak_acid') updateStatusText("弱酸部分分子发生电离，共价键断裂产生 H⁺ 和 CH₃COO⁻。使用可逆符号 ⇌。", "text-blue-300 font-bold");
+                    else updateStatusText("弱碱(如氨水)部分电离，产生 NH₄⁺ 和 OH⁻。使用可逆符号 ⇌。", "text-blue-300 font-bold");
+                    eq2.innerHTML = cfg.ionEq;
+                } else if (cfg.type === 'covalent') {
+                    updateStatusText("强极性共价键在水分子作用下完全断裂，发生完全电离！", "text-cyan-300 font-bold");
+                    eq2.innerHTML = cfg.ionEq;
+                } else {
+                    updateStatusText("水分子克服了强烈的离子键，微粒解离形成水合离子，能够完全自由移动！", "text-cyan-300 font-bold");
+                    eq2.innerHTML = cfg.ionEq;
+                }
+                
+                eq2.style.height = '36px';
+                eq2.style.opacity = '1';
+                eq2.style.marginTop = '12px';
+            }, 300);
+        }
+
+        function resetSimulation(updateText = true) {
+            if (currentMode === 'pure') animationMode = 'IDLE';
+            else if (currentMode === 'mix') animationMode = 'REACTION_IDLE';
+            else if (currentMode === 'ionization') animationMode = 'IONIZATION_IDLE';
+            meltTemperature = 0; dissolveProgress = 0;
+            bondsGroup.visible = true;
+            
+            maxRecordedCharge = 1; chartData.fill(0);
+            updateEquationBoard(1);
+
+            while(demoGroup.children.length > 0) demoGroup.remove(demoGroup.children[0]);
+            if (isElectricFieldOn) toggleElectricField();
+            ambientWater.forEach(wm => scene.remove(wm.group)); ambientWater = []; document.body.classList.remove('underwater');
+            document.getElementById('bond-popup').classList.add('hidden');
+
+            buildScene();
+            camera.position.set(0, 8, 38); controls.target.set(0,0,0);
+            
+            if (updateText) {
+                const cfg = CONFIGS[currentSubstance];
+                if (currentMode === 'pure') {
+                    if (cfg.isMolecularCrystal) {
+                        updateStatusText(`当前状态：固态 ${cfg.name}。分子之间通过较弱的分子间作用力结合成晶体，不含自由离子，不导电。`, "text-slate-300");
+                    } else {
+                        updateStatusText(`当前状态：固态纯 ${cfg.name}。微粒被作用力束缚，无法自由移动，不导电。`, "text-slate-300");
+                    }
+                }
+                else if (currentMode === 'mix') {
+                    updateStatusText(`当前状态：左侧与右侧分别是完全电离的强电解质水溶液。它们以自由水合离子的形式存在，所以写方程式必须【拆】！点击 [抽离隔板] 进行混合。`, "text-slate-300");
+                }
+                else if (currentMode === 'ionization') {
+                    updateStatusText(`当前状态：左右微观对比视图。左侧为【电离前】的晶格或分子，右侧为【电离后】的自由微粒。点击 [展开电离方程式] 学习书写。`, "text-slate-300");
+                }
+            }
+        }
+
+        function updateStatusText(text, colorClass) {
+            const el = document.getElementById('status-text');
+            if (el) {
+                el.innerText = text;
+                el.className = `text-[12px] leading-relaxed font-medium h-[4rem] overflow-y-auto custom-scrollbar pr-1 ${colorClass || 'text-slate-200'}`;
+            }
+        }
+
+        function onPointerDown(event) {
+            if (animationMode !== 'IDLE' || currentMode !== 'pure') return;
+            mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1; mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bondHitMeshes);
+            if (intersects.length > 0) {
+                const data = intersects[0].object.userData;
+                const titleEl = document.getElementById('bond-popup-title');
+                const descEl = document.getElementById('bond-popup-desc');
+                const popupEl = document.getElementById('bond-popup');
+
+                if (data.isWeak) {
+                    titleEl.innerHTML = '<svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> 微观揭秘：分子间作用力';
+                    titleEl.className = 'text-base font-bold text-purple-400 flex items-center gap-2 border-b border-slate-600/50 pb-2';
+                    popupEl.style.borderColor = 'rgba(168, 85, 247, 0.5)';
+                    popupEl.style.boxShadow = '0 0 50px rgba(168, 85, 247, 0.5)';
+                    descEl.innerHTML = '你点击了淡紫色的连线，它代表着 <span class="text-purple-400 font-bold">分子间作用力（如范德华力/氢键）</span>。这种力量较弱，在溶解时容易被水分子破坏。但是分子内部的共价键非常牢固，整个分子会完好无损地进入水中，<span class="text-red-400 font-bold">不会产生自由移动的离子</span>，无法导电！';
+                } else {
+                    titleEl.innerHTML = '<svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> 微观揭秘：坚固的离子键';
+                    titleEl.className = 'text-base font-bold text-cyan-300 flex items-center gap-2 border-b border-slate-600/50 pb-2';
+                    popupEl.style.borderColor = 'rgba(34, 211, 238, 0.5)';
+                    popupEl.style.boxShadow = '0 0 50px rgba(34, 211, 238, 0.5)';
+                    descEl.innerHTML = '你点击了淡蓝色的连线，它代表着 <span class="text-cyan-400 font-bold">静电引力（离子键）</span>。正是这种强大的束缚力导致固态晶体中的离子无法自由移动，从而无法导电。必须在水中溶解或高温熔融，才能打破晶格！';
+                }
+
+                popupEl.classList.remove('hidden'); popupEl.classList.add('flex');
+            }
+        }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
