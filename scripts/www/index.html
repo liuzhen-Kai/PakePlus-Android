@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D微观化学实验室：探秘影响物质体积大小的因素</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts: Inter & Noto Sans SC -->
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+        .nav-tab-active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+            border-color: #60a5fa;
+        }
+        .sub-btn-active {
+            background: rgba(59, 130, 246, 0.25);
+            border-color: #3b82f6;
+            color: #93c5fd;
+        }
+        .pulse-badge {
+            animation: softPulse 2.2s infinite ease-in-out;
+        }
+        @keyframes softPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.04); opacity: 0.85; }
+        }
+        input[type="range"] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col select-none">
+
+    <!-- Top Header & Navigation Bar -->
+    <header class="w-full bg-slate-900/90 border-b border-slate-800 px-4 py-3 z-20 sticky top-0 backdrop-blur-md">
+        <div class="max-w-[1600px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
+            <!-- Brand & Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        影响物质体积大小的因素
+                        <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">高中化学 3D 探究实验</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">从初中微粒的三个特点出发，层层剖析固、液、气三态体积的微观决定因素</p>
+                </div>
+            </div>
+
+            <!-- 4 Step Pedagogical Tabs -->
+            <nav class="flex flex-wrap items-center justify-center gap-2" id="main-nav">
+                <button onclick="switchModule(1)" id="tab-1" class="nav-tab-active px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">1</span>
+                    水的三态与初中回顾
+                </button>
+                <button onclick="switchModule(2)" id="tab-2" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-xs">2</span>
+                    影响体积的三大因素
+                </button>
+                <button onclick="switchModule(3)" id="tab-3" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-xs">3</span>
+                    相互作用与主导因素
+                </button>
+                <button onclick="switchModule(4)" id="tab-4" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-xs">4</span>
+                    思维建构与互动闯关
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Interactive Workspace -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto p-3 md:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+        <!-- Left / Center: 3D Simulation Viewport (7 cols on desktop) -->
+        <section class="lg:col-span-7 xl:col-span-8 flex flex-col rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 relative min-h-[460px] lg:min-h-[680px] shadow-2xl">
+            
+            <!-- Top Overlay HUD: Current Scene Info & Telemetry -->
+            <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
+                <!-- Scene Title Badge -->
+                <div class="glass-panel px-4 py-2.5 rounded-xl pointer-events-auto max-w-md">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <h2 id="hud-title" class="text-sm md:text-base font-bold text-white">水（H₂O）的三态微观 3D 模型</h2>
+                    </div>
+                    <p id="hud-subtitle" class="text-xs text-slate-300 mt-0.5">红色球体代表氧原子(O)，白色球体代表氢原子(H)。拖拽鼠标旋转视角，滚轮缩放。</p>
+                </div>
+
+                <!-- Real-time Microscopic Telemetry Cards -->
+                <div id="hud-metrics" class="glass-panel px-3.5 py-2 rounded-xl flex items-center gap-4 text-xs pointer-events-auto">
+                    <div>
+                        <span class="text-slate-400 block">微粒数目 (N)</span>
+                        <span id="metric-count" class="text-sm font-bold text-cyan-400">64 个 H₂O</span>
+                    </div>
+                    <div class="h-7 w-px bg-slate-700"></div>
+                    <div>
+                        <span class="text-slate-400 block">微粒半径 (r)</span>
+                        <span id="metric-radius" class="text-sm font-bold text-amber-400">0.14 nm (不变)</span>
+                    </div>
+                    <div class="h-7 w-px bg-slate-700"></div>
+                    <div>
+                        <span class="text-slate-400 block">微粒间平均间隔 (d)</span>
+                        <span id="metric-spacing" class="text-sm font-bold text-emerald-400">较小 (约 1×r)</span>
+                    </div>
+                    <div class="h-7 w-px bg-slate-700"></div>
+                    <div>
+                        <span class="text-slate-400 block">宏观占据体积 (V)</span>
+                        <span id="metric-volume" class="text-sm font-bold text-rose-400">1.00 V₀</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3D Comparison Labels Overlay (Used when comparing Li/Na/K or Solid/Liquid/Gas side by side) -->
+            <div id="comparison-labels" class="absolute top-24 left-0 right-0 z-10 hidden justify-around px-6 pointer-events-none">
+                <div id="comp-label-1" class="glass-panel px-3 py-1.5 rounded-lg text-center border border-cyan-500/40">
+                    <div class="text-xs font-bold text-cyan-300">模型 1</div>
+                    <div class="text-[11px] text-slate-300">数据</div>
+                </div>
+                <div id="comp-label-2" class="glass-panel px-3 py-1.5 rounded-lg text-center border border-amber-500/40">
+                    <div class="text-xs font-bold text-amber-300">模型 2</div>
+                    <div class="text-[11px] text-slate-300">数据</div>
+                </div>
+                <div id="comp-label-3" class="glass-panel px-3 py-1.5 rounded-lg text-center border border-rose-500/40">
+                    <div class="text-xs font-bold text-rose-300">模型 3</div>
+                    <div class="text-[11px] text-slate-300">数据</div>
+                </div>
+            </div>
+
+            <!-- Three.js Canvas Container -->
+            <div id="canvas-container" class="w-full flex-1 relative"></div>
+
+            <!-- Bottom Overlay Controls inside 3D Viewport -->
+            <div class="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-3 text-xs text-slate-300 pointer-events-auto">
+                    <span class="flex items-center gap-1">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span> 氧原子 / 粒子核
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-100 inline-block"></span> 氢原子
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <span class="w-3 h-0.5 bg-cyan-400 inline-block"></span> 容器体积边界
+                    </span>
+                    <span id="legend-force" class="hidden items-center gap-1">
+                        <span class="w-3 h-0.5 bg-amber-400 inline-block"></span> 微粒间相互作用力
+                    </span>
+                    <span id="legend-collision" class="hidden items-center gap-1">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping inline-block"></span> 器壁碰撞闪光(产生压强)
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-2 pointer-events-auto">
+                    <button onclick="toggleBoundingBox()" id="btn-bbox" class="glass-panel hover:bg-slate-800 text-xs px-3 py-1.5 rounded-xl text-cyan-300 border border-cyan-500/30 transition">
+                        显示/隐藏体积框
+                    </button>
+                    <button onclick="resetCamera()" class="glass-panel hover:bg-slate-800 text-xs px-3 py-1.5 rounded-xl text-slate-200 transition flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        重置3D视角
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Pedagogical Control & Guided Inquiry Panel (5 cols on desktop) -->
+        <aside class="lg:col-span-5 xl:col-span-4 flex flex-col gap-4">
+
+            <!-- ================= MODULE 1 PANEL ================= -->
+            <div id="panel-module-1" class="flex flex-col gap-4">
+                <!-- State Switcher Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span class="w-2 h-5 rounded-full bg-blue-500"></span>
+                            第一部分：观察水的固、液、气三态
+                        </h3>
+                        <span class="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">支持单选或全选同屏</span>
+                    </div>
+
+                    <!-- 3 State Buttons + Select All Side-by-Side Button -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                        <button onclick="setWaterState('solid')" id="btn-state-solid" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all">
+                            <span class="text-lg">🧊</span>
+                            <span class="text-xs font-bold">固态（冰）</span>
+                            <span class="text-[10px] opacity-80">规则排列·原位振动</span>
+                        </button>
+                        <button onclick="setWaterState('liquid')" id="btn-state-liquid" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all">
+                            <span class="text-lg">💧</span>
+                            <span class="text-xs font-bold">液态（水）</span>
+                            <span class="text-[10px] opacity-80">紧密聚集·自由滑动</span>
+                        </button>
+                        <button onclick="setWaterState('gas')" id="btn-state-gas" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all">
+                            <span class="text-lg">☁️</span>
+                            <span class="text-xs font-bold">气态（水蒸气）</span>
+                            <span class="text-[10px] opacity-80">间隔极大·高速飞散</span>
+                        </button>
+                        <button onclick="setWaterState('all')" id="btn-state-all" class="sub-btn-active p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all">
+                            <span class="text-lg">✨</span>
+                            <span class="text-xs font-bold">三态同时显示</span>
+                            <span class="text-[10px] opacity-80">全选同屏直观对比</span>
+                        </button>
+                    </div>
+
+                    <!-- Temperature / Motion & Thermal Expansion Slider -->
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-300 font-medium">🌡️ 调节温度（同时改变热运动速率与体积膨胀）：</span>
+                            <span id="temp-label" class="text-amber-400 font-bold">1.0x 常温 (体积 1.00 V₀)</span>
+                        </div>
+                        <input type="range" id="slider-motion" min="0.5" max="2.5" step="0.1" value="1.0" oninput="updateMotionSpeed(this.value)" class="w-full cursor-pointer">
+                        <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                            <span>❄️ 降温：运动减慢，间隔缩小，体积收缩</span>
+                            <span>🔥 升温：运动加剧，间隔增大，体积膨胀</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Junior High 3 Characteristics Review Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex-1 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <span class="w-2 h-5 rounded-full bg-emerald-500"></span>
+                                初中回顾：微粒的三个基本特点
+                            </h3>
+                            <span class="text-xs text-emerald-400">点击卡片高亮验证</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">
+                            结合左侧 3D 水分子模型，我们先来温习初中阶段学习的构成物质微粒的三大基本特征：
+                        </p>
+
+                        <!-- 3 Interactive Feature Cards -->
+                        <div class="space-y-2.5">
+                            <div onclick="highlightJuniorTrait(1)" id="trait-card-1" class="p-3 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-blue-500/40 cursor-pointer transition-all">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-bold text-blue-300">特点一：微粒的质量和体积都很小</span>
+                                    <span class="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">微观尺度</span>
+                                </div>
+                                <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                                    1个水分子的质量约 <span class="text-amber-300 font-mono">3×10⁻²⁶ kg</span>，一滴水中大约含有 <span class="text-amber-300 font-mono">1.67×10²¹</span> 个水分子！3D模型是将水分子放大了约百亿倍后的效果。
+                                </p>
+                            </div>
+
+                            <div onclick="highlightJuniorTrait(2)" id="trait-card-2" class="p-3 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700 cursor-pointer transition-all">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-bold text-amber-300">特点二：微粒在不断做无规则运动</span>
+                                    <span class="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">永不停息</span>
+                                </div>
+                                <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                                    即使在固态冰中，水分子也在平衡位置附近不停振动；液态水分子自由滑动旋转；气态水分子更是向四面八方高速碰撞飞散。温度越高，运动越剧烈。
+                                </p>
+                            </div>
+
+                            <div onclick="highlightJuniorTrait(3)" id="trait-card-3" class="p-3 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700 cursor-pointer transition-all">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-bold text-emerald-300">特点三：微粒之间都有间隔</span>
+                                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">核心突破口</span>
+                                </div>
+                                <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                                    观察3D模型中的蓝色虚线框：微粒并非完全紧贴无缝，它们之间存在空隙（间隔）。气态微粒之间的间隔远远大于固体和液体！
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Next Step Guidance Button -->
+                    <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">思考：从微粒的这3个特点出发，哪些因素会改变物质的总体积？</span>
+                        <button onclick="switchModule(2)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 transition shrink-0 ml-2">
+                            进入探究 →
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= MODULE 2 PANEL ================= -->
+            <div id="panel-module-2" class="hidden flex-col gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2 mb-2">
+                        <span class="w-2 h-5 rounded-full bg-cyan-500"></span>
+                        第二部分：影响物质体积大小的三个微观因素
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-3">
+                        运用**控制变量法**，我们依次改变「微粒本身的大小」、「微粒的数目」和「微粒之间的间隔」，观察3D模型中物质所占体积的变化：
+                    </p>
+
+                    <!-- 3 Factor Switcher Tabs -->
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <button onclick="setFactorExperiment('size')" id="btn-factor-size" class="sub-btn-active p-2.5 rounded-xl border border-slate-700 text-center transition-all">
+                            <div class="text-xs font-bold">因素① 微粒大小</div>
+                            <div class="text-[11px] opacity-80 mt-0.5">锂(Li)·钠(Na)·钾(K)</div>
+                        </button>
+                        <button onclick="setFactorExperiment('count')" id="btn-factor-count" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-center transition-all">
+                            <div class="text-xs font-bold">因素② 微粒数目</div>
+                            <div class="text-[11px] opacity-80 mt-0.5">水分子多与少对比</div>
+                        </button>
+                        <button onclick="setFactorExperiment('spacing')" id="btn-factor-spacing" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-center transition-all">
+                            <div class="text-xs font-bold">因素③ 微粒间隔</div>
+                            <div class="text-[11px] opacity-80 mt-0.5">同数目冰·水·水蒸气</div>
+                        </button>
+                    </div>
+
+                    <!-- Sub-panel A: Particle Size (Li, Na, K) -->
+                    <div id="factor-detail-size" class="space-y-3">
+                        <div class="p-3 rounded-xl bg-slate-950/90 border border-cyan-500/30">
+                            <div class="text-xs font-bold text-cyan-300 mb-1">🔬 实验一：观察碱金属单质 锂(Li)、钠(Na)、钾(K)</div>
+                            <p class="text-xs text-slate-300 leading-relaxed">
+                                左侧 3D 视图中并排展示了 **数目完全相同（均为 4×4×4 = 64 个金属原子）** 且紧密排列的三种碱金属单质晶格：
+                            </p>
+                            <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+                                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                    <div class="text-xs font-bold text-cyan-400">锂 (Li)</div>
+                                    <div class="text-[11px] text-slate-400">原子半径: 152 pm</div>
+                                    <div class="text-xs font-semibold text-white mt-1">摩尔体积: 13.0 cm³</div>
+                                    <div class="text-[10px] text-emerald-400">体积最小</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                    <div class="text-xs font-bold text-amber-400">钠 (Na)</div>
+                                    <div class="text-[11px] text-slate-400">原子半径: 186 pm</div>
+                                    <div class="text-xs font-semibold text-white mt-1">摩尔体积: 23.7 cm³</div>
+                                    <div class="text-[10px] text-amber-400">体积居中</div>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                    <div class="text-xs font-bold text-rose-400">钾 (K)</div>
+                                    <div class="text-[11px] text-slate-400">原子半径: 227 pm</div>
+                                    <div class="text-xs font-semibold text-white mt-1">摩尔体积: 45.3 cm³</div>
+                                    <div class="text-[10px] text-rose-400">体积最大</div>
+                                </div>
+                    <!-- Sub-panel B: Particle Count (Water Molecules Few vs Many Simultaneously) -->
+                    <div id="factor-detail-count" class="hidden space-y-3">
+                        <div class="p-3 rounded-xl bg-slate-950/90 border border-amber-500/30">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="text-xs font-bold text-amber-300">🔬 实验二：不同数目的水分子（H₂O）同屏对比</div>
+                                <span class="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">已同屏展示</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+                                左侧 3D 视图中**同时并排展示**了微粒大小相同、微粒间间隔也相同的三组水分子簇。您也可以点击下方按钮切换“三组同时显示”或单独放大观察：
+                            </p>
+                            <div class="grid grid-cols-4 gap-1.5">
+                                <button onclick="setWaterCountLevel('all')" id="btn-count-all" class="sub-btn-active p-2 rounded-lg border border-amber-400 text-center transition">
+                                    <div class="text-xs font-bold text-white">✨ 同时显示</div>
+                                    <div class="text-[10px] text-amber-300">27 vs 64 vs 125</div>
+                                </button>
+                                <button onclick="setWaterCountLevel(27)" id="btn-count-27" class="p-2 rounded-lg bg-slate-900 border border-slate-700 hover:border-amber-400 text-center transition">
+                                    <div class="text-xs font-bold text-cyan-300">27 个H₂O</div>
+                                    <div class="text-[10px] text-slate-400">体积: 0.42 V₀</div>
+                                </button>
+                                <button onclick="setWaterCountLevel(64)" id="btn-count-64" class="p-2 rounded-lg bg-slate-900 border border-slate-700 hover:border-amber-400 text-center transition">
+                                    <div class="text-xs font-bold text-amber-300">64 个H₂O</div>
+                                    <div class="text-[10px] text-slate-400">体积: 1.00 V₀</div>
+                                </button>
+                                <button onclick="setWaterCountLevel(125)" id="btn-count-125" class="p-2 rounded-lg bg-slate-900 border border-slate-700 hover:border-amber-400 text-center transition">
+                                    <div class="text-xs font-bold text-rose-300">125 个H₂O</div>
+                                    <div class="text-[10px] text-slate-400">体积: 1.95 V₀</div>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-200 leading-relaxed">
+                            💡 <strong>实验结论 2：</strong>从同屏对比可以清晰看出，当微粒本身的大小和微粒间间隔相同时，<strong>微粒的数目（$N$ 或物质的量 $n$）</strong>越多，物质所占的宏观体积就越大！
+                        </div>
+                    </div>
+
+                    <!-- Sub-panel C: Particle Spacing (Ice vs Water vs Steam with Same Count & Size) -->
+                    <div id="factor-detail-spacing" class="hidden space-y-3">
+                        <div class="p-3 rounded-xl bg-slate-950/90 border border-rose-500/30">
+                            <div class="text-xs font-bold text-rose-300 mb-1">🔬 实验三：同数目、同大小的水分子（冰 vs 水 vs 水蒸气）</div>
+                            <p class="text-xs text-slate-300 leading-relaxed mb-2">
+                                左侧同时展示了**分子数目完全相同（均为 27 个 H₂O 分子）、分子本身大小完全一样**的冰、液态水和水蒸气：
+                            </p>
+                            <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+                                <li><strong class="text-cyan-300">固态冰 (1 mol 约 19.6 cm³)</strong>：氢键形成规则空旷四面体网状结构，间隔很小但比液态水略大一点。</li>
+                                <li><strong class="text-amber-300">液态水 (1 mol 约 18.0 cm³)</strong>：水分子紧密聚集滑动，微粒间间隔极小。</li>
+                                <li><strong class="text-rose-300">水蒸气 (100℃, 1 mol 约 30,600 cm³)</strong>：分子间间隔拉大到原来的 10 倍以上，体积暴增约 <strong>1700 倍</strong>！</li>
+                            </ul>
+                        </div>
+                        <div class="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-200 leading-relaxed">
+                            💡 <strong>实验结论 3：</strong>即使微粒的数目和本身大小完全相同，因为<strong>微粒之间的间隔（距离 $d$）</strong>不同，三态所占据的体积也截然不同！
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary of 3 Factors Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-blue-400">阶段小结：影响物质体积的三个微观因素</div>
+                        <div class="text-xs text-slate-300 mt-1">① 微粒本身的大小 &nbsp;|&nbsp; ② 微粒的数目 &nbsp;|&nbsp; ③ 微粒之间的间隔</div>
+                    </div>
+                    <button onclick="switchModule(3)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 transition shrink-0">
+                        深入对比固液与气体 →
+                    </button>
+                </div>
+            </div>
+
+            <!-- ================= MODULE 3 PANEL ================= -->
+            <div id="panel-module-3" class="hidden flex-col gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2 mb-2">
+                        <span class="w-2 h-5 rounded-full bg-amber-500"></span>
+                        第三部分：微粒间相互作用与体积主导因素
+                    </h3>
+                    <p class="text-xs text-slate-300 leading-relaxed mb-3">
+                        明确了三个因素后，我们把**固/液态**与**气态**放在一起深入对比（注意观察 3D 模型中微粒之间的<span class="text-amber-400 font-bold">金色相互作用力连线</span>）：
+                    </p>
+
+                    <!-- Interactive Focus Toggle -->
+                    <div class="grid grid-cols-2 gap-2.5 mb-3">
+                        <button onclick="setInteractionView('both')" id="btn-inter-both" class="sub-btn-active p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition">
+                            🔍 固/液态 vs 气态 同屏对比
+                        </button>
+                        <button onclick="setInteractionView('gas-only')" id="btn-inter-gas" class="bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition">
+                            💥 探秘气体压强产生与 T/P 影响
+                        </button>
+                    </div>
+
+                    <!-- Microscopic Pressure Mechanism Live Monitor Card -->
+                    <div class="bg-gradient-to-r from-amber-950/60 to-rose-950/60 p-3 rounded-xl border border-amber-500/40 mb-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                                💡 压强是如何产生的？（观察3D容器壁上的金色碰撞光环）
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30">微观本质可视化</span>
+                        </div>
+                        <p class="text-[11px] text-slate-200 leading-relaxed mb-2">
+                            <strong>气体压强的微观本质：</strong>大量做无规则热运动的气体分子，<strong>持续、频繁地撞击容器器壁</strong>（3D图中每次撞击器壁都会触发<span class="text-amber-300 font-semibold">金色闪光波纹</span>），大量撞击汇集成对器壁的持续平均压力！
+                        </p>
+                        <!-- Real-time Collision Telemetry Bars -->
+                        <div class="grid grid-cols-3 gap-2 bg-slate-950/80 p-2 rounded-lg border border-slate-800 text-center">
+                            <div>
+                                <div class="text-[10px] text-slate-400">单位面积撞击频率</div>
+                                <div id="pressure-freq-val" class="text-xs font-bold text-amber-400">中等 (42 次/s)</div>
+                            </div>
+                            <div class="border-x border-slate-800">
+                                <div class="text-[10px] text-slate-400">单次撞击平均冲量</div>
+                                <div id="pressure-impulse-val" class="text-xs font-bold text-cyan-400">1.00 I₀ (与T相关)</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-400">活塞平衡状态</div>
+                                <div id="pressure-balance-val" class="text-xs font-bold text-emerald-400">P内 = P外 (101 kPa)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Temperature & Pressure Sliders to test Compressibility / Expansion -->
+                    <div class="bg-slate-950/90 p-3.5 rounded-xl border border-slate-800 space-y-3 mb-3">
+                        <div class="text-xs font-bold text-cyan-300 flex items-center justify-between">
+                            <span>⚙️ 外部条件实验台（观察顶部活塞升降与器壁碰撞变化）</span>
+                            <button onclick="resetTP()" class="text-[11px] text-slate-400 hover:text-white underline">恢复标况</button>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">🌡️ 升高/降低温度 ($T$)：</span>
+                                <span id="tp-temp-val" class="text-amber-400 font-bold">300 K (常温)</span>
+                            </div>
+                            <input type="range" id="slider-tp-temp" min="180" max="600" step="20" value="300" oninput="updateTP()" class="w-full cursor-pointer">
+                            <p class="text-[11px] text-slate-400 mt-0.5">🔥 <strong>升温原理：</strong>分子运动速率加快 → 撞击器壁更猛烈、更频繁 → 内部压强大于外压，向上推高活塞使<strong>分子间隔增大、体积显著膨胀</strong>！</p>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">🔨 增大/减小外部压强 ($P$)：</span>
+                                <span id="tp-pres-val" class="text-emerald-400 font-bold">101 kPa (1 atm)</span>
+                            </div>
+                            <input type="range" id="slider-tp-pres" min="50" max="250" step="25" value="101" oninput="updateTP()" class="w-full cursor-pointer">
+                            <p class="text-[11px] text-slate-400 mt-0.5">🔨 <strong>加压原理：</strong>外部向下压活塞 → <strong>气体分子间隔被迫缩小、体积减小</strong> → 单位体积分子变密，撞击器壁频率大增，使内部压强升高以抵消外压！</p>
+                        </div>
+                    </div>
+
+                    <!-- Core Pedagogical Comparison Cards -->
+                    <div class="space-y-2.5">
+                        <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30">
+                            <div class="text-xs font-bold text-blue-300 flex items-center justify-between">
+                                <span>🧊💧 固体和液体：相互作用强，间隔极小</span>
+                                <span class="text-[11px] bg-blue-500/20 px-2 py-0.5 rounded">d ≪ r</span>
+                            </div>
+                            <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                                固、液态微粒之间存在较强的<strong>相互作用力</strong>（图中金色连线），把微粒紧紧束缚在一起，微粒间间隔很小，所以<strong>间隔不怎么影响它们的体积</strong>。
+                                <br>👉 <strong class="text-white">决定固、液体积的主要因素：</strong><span class="text-cyan-300 font-bold">① 微粒的数目</span> 和 <span class="text-amber-300 font-bold">② 微粒本身的大小</span>。
+                            </p>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30">
+                            <div class="text-xs font-bold text-rose-300 flex items-center justify-between">
+                                <span>☁️ 气体：间隔远大于微粒本身，相互作用极小</span>
+                                <span class="text-[11px] bg-rose-500/20 px-2 py-0.5 rounded">d ≈ 10r (d ≫ r)</span>
+                            </div>
+                            <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                                气体微粒之间的间隔非常大（约为微粒直径的10倍以上），因此微粒间的<strong>相互作用非常少、非常小（几乎可忽略）</strong>，微粒本身的大小相对于巨大的间隔也可忽略不计！
+                                <br>👉 <strong class="text-white">决定气体体积的主要因素：</strong><span class="text-cyan-300 font-bold">① 分子的数目</span> 和 <span class="text-rose-300 font-bold">② 分子之间的间隔（由温度 T 和压强 P 决定）</span>。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="switchModule(4)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold shadow-lg transition">
+                        前往第四部分：思维导图总结与随堂检测 →
+                    </button>
+                </div>
+            </div>
+
+            <!-- ================= MODULE 4 PANEL ================= -->
+            <div id="panel-module-4" class="hidden flex-col gap-4">
+                <!-- Structured Logic Tree Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2 mb-3">
+                        <span class="w-2 h-5 rounded-full bg-purple-500"></span>
+                        第四部分：知识体系建构与随堂闯关
+                    </h3>
+
+                    <!-- Visual Concept Tree -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-2 mb-4">
+                        <div class="font-bold text-center text-cyan-300 py-1 bg-cyan-950/50 rounded-lg border border-cyan-500/30">
+                            影响物质体积大小的三个微观因素：微粒数目 (N)、微粒大小 (r)、微粒间隔 (d)
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <div class="p-2.5 rounded-lg bg-slate-900 border border-blue-500/30">
+                                <div class="font-bold text-blue-300 mb-1">固体 / 液体物质</div>
+                                <div class="text-[11px] text-slate-400">微粒间相互作用强 → 间隔极小</div>
+                                <div class="mt-1.5 text-white font-semibold">主导因素：</div>
+                                <div class="text-amber-300">① 微粒的数目</div>
+                                <div class="text-amber-300">② 微粒本身的大小</div>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-slate-900 border border-rose-500/30">
+                                <div class="font-bold text-rose-300 mb-1">气体物质</div>
+                                <div class="text-[11px] text-slate-400">间隔 d ≫ r → 相互作用极小</div>
+                                <div class="mt-1.5 text-white font-semibold">主导因素：</div>
+                                <div class="text-emerald-300">① 分子的数目</div>
+                                <div class="text-emerald-300">② 分子间的间隔 (受 T、P 影响)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive 3-Question Mini Quiz -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-white">🎯 课堂互动诊断（点击选项立即检验）：</span>
+                            <span id="quiz-score" class="text-xs text-emerald-400 font-bold">进度：0 / 3</span>
+                        </div>
+
+                        <!-- Q1 -->
+                        <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2">
+                            <div class="text-xs font-semibold text-slate-200">
+                                1. 相同数目的锂(Li)、钠(Na)、钾(K)单质所占体积不同，主要原因是什么？
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                <button onclick="checkQuiz(1, 'A', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">A. 原子本身的大小不同</button>
+                                <button onclick="checkQuiz(1, 'B', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">B. 原子间没有间隔</button>
+                            </div>
+                            <div id="quiz-fb-1" class="hidden text-[11px] pt-1"></div>
+                        </div>
+
+                        <!-- Q2 -->
+                        <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2">
+                            <div class="text-xs font-semibold text-slate-200">
+                                2. 1 mol 液态水变成 100℃ 的水蒸气时，体积扩大约 1700 倍，主要是因为？
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                <button onclick="checkQuiz(2, 'A', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">A. 水分子本身膨胀变大了</button>
+                                <button onclick="checkQuiz(2, 'B', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">B. 水分子之间的间隔显著增大</button>
+                            </div>
+                            <div id="quiz-fb-2" class="hidden text-[11px] pt-1"></div>
+                        </div>
+
+                        <!-- Q3 -->
+                        <div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2">
+                            <div class="text-xs font-semibold text-slate-200">
+                                3. 对于气体而言，当分子数目一定时，决定其体积大小的最主要微观因素是？
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                <button onclick="checkQuiz(3, 'A', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">A. 气体分子本身的大小</button>
+                                <button onclick="checkQuiz(3, 'B', this)" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-left transition">B. 气体分子之间的平均间隔</button>
+                            </div>
+                            <div id="quiz-fb-3" class="hidden text-[11px] pt-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Application Logic & Three.js 3D Engine -->
+    <script>
+        // ==========================================
+        // GLOBAL STATE & CONFIGURATION
+        // ==========================================
+        let currentModule = 1;
+        let waterState = 'all';         // 'solid' | 'liquid' | 'gas' | 'all' (default 'all' so students see all 3 states simultaneously!)
+        let motionSpeed = 1.0;
+        let currentFactor = 'size';     // 'size' | 'count' | 'spacing'
+        let waterCountLevel = 'all';    // 'all' | 27 | 64 | 125 (default 'all' so different counts are shown simultaneously!)
+        let interactionView = 'both';   // 'both' | 'gas-only'
+        let simTemp = 300;              // 180K - 600K
+        let simPres = 101;              // 50kPa - 250kPa
+        let showBBox = true;
+        let quizAnswered = { 1: false, 2: false, 3: false };
+
+        // Wall Collision Flash Ripples (to visualize how gas pressure is generated!)
+        let collisionRipples = [];
+        let collisionCountThisSec = 0;
+        let collisionTimer = 0;
+
+        // Three.js Globals
+        let scene, camera, renderer;
+        let mainGroup, bboxGroup, forceLinesGroup, rippleGroup;
+        let particles = []; // Stores active particle meshes and physics data
+        let clock = new THREE.Clock();
+
+        // Camera Orbit Control State
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let spherical = { radius: 26, theta: 0.45, phi: 1.15 };
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
+
+        // Shared Geometries & Materials for Performance
+        let sphereGeoHigh, sphereGeoLow, ringGeo;
+        let matOxygen, matHydrogen, matBond;
+        let matLi, matNa, matK;
+        let matForceLine;
+
+        // ==========================================
+        // INITIALIZE THREE.JS SCENE
+        // ==========================================
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth || 800;
+            const height = container.clientHeight || 550;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x090d16);
+            scene.fog = new THREE.FogExp2(0x090d16, 0.012);
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
+            updateCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+            dirLight1.position.set(15, 25, 20);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.4);
+            dirLight2.position.set(-20, -15, -10);
+            scene.add(dirLight2);
+
+            // Reference Grid Floor
+            const gridHelper = new THREE.GridHelper(46, 23, 0x1e293b, 0x111827);
+            gridHelper.position.y = -8.5;
+            scene.add(gridHelper);
+
+            // Groups
+            mainGroup = new THREE.Group();
+            bboxGroup = new THREE.Group();
+            forceLinesGroup = new THREE.Group();
+            rippleGroup = new THREE.Group();
+            scene.add(mainGroup);
+            scene.add(bboxGroup);
+            scene.add(forceLinesGroup);
+            scene.add(rippleGroup);
+
+            // Shared Geometries & Materials
+            sphereGeoHigh = new THREE.SphereGeometry(1, 24, 24);
+            sphereGeoLow = new THREE.SphereGeometry(1, 14, 14);
+            ringGeo = new THREE.RingGeometry(0.12, 0.32, 20);
+
+            matOxygen = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.25, metalness: 0.15 });
+            matHydrogen = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.1 });
+            matBond = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4 });
+
+            matLi = new THREE.MeshStandardMaterial({ color: 0x22d3ee, roughness: 0.25, metalness: 0.55 });
+            matNa = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.25, metalness: 0.55 });
+            matK  = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.25, metalness: 0.55 });
+
+            matForceLine = new THREE.LineBasicMaterial({
+                color: 0xfbbf24,
+                transparent: true,
+                opacity: 0.55
+            });
+
+            // Bind Mouse & Touch Camera Controls
+            bindCameraEvents(renderer.domElement);
+
+            // Handle Responsive Resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Build Initial Scene (Module 1: Solid Ice)
+            buildSceneForCurrentState();
+        }
+
+        // ==========================================
+        // H2O MOLECULE & METAL ATOM BUILDERS
+        // ==========================================
+        function createWaterMoleculeMesh(scale = 0.38) {
+            const group = new THREE.Group();
+
+            // Oxygen Atom
+            const oxygen = new THREE.Mesh(sphereGeoLow, matOxygen);
+            oxygen.scale.setScalar(scale);
+            group.add(oxygen);
+
+            // Two Hydrogen Atoms at ~104.5 deg bond angle
+            const hScale = scale * 0.58;
+            const dist = scale * 0.95;
+            const angle = (104.5 / 2) * (Math.PI / 180);
+
+            const h1 = new THREE.Mesh(sphereGeoLow, matHydrogen);
+            h1.scale.setScalar(hScale);
+            h1.position.set(Math.sin(angle) * dist, Math.cos(angle) * dist, 0);
+            group.add(h1);
+
+            const h2 = new THREE.Mesh(sphereGeoLow, matHydrogen);
+            h2.scale.setScalar(hScale);
+            h2.position.set(-Math.sin(angle) * dist, Math.cos(angle) * dist, 0);
+            group.add(h2);
+
+            return group;
+        }
+
+        function createWireframeBox(width, height, depth, colorHex, center = new THREE.Vector3(0, 0, 0)) {
+            const boxGeo = new THREE.BoxGeometry(width, height, depth);
+            const edges = new THREE.EdgesGeometry(boxGeo);
+            const lineMat = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.75 });
+            const wireframe = new THREE.LineSegments(edges, lineMat);
+            wireframe.position.copy(center);
+
+            // Subtle translucent volume fill
+            const fillMat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: 0.05,
+                depthWrite: false
+            });
+            const fillMesh = new THREE.Mesh(boxGeo, fillMat);
+            fillMesh.position.copy(center);
+
+            const container = new THREE.Group();
+            container.add(wireframe);
+            container.add(fillMesh);
+            return container;
+        }
+
+        // Create a 3D Movable Piston + Pressure Force Arrows on top of a gas container to visualize Pressure (P)
+        function createPistonOverlay(width, height, depth, center, pressureVal) {
+            const group = new THREE.Group();
+
+            // Piston plate sitting on the top face (y = center.y + height/2)
+            const plateGeo = new THREE.BoxGeometry(width * 0.98, 0.28, depth * 0.98);
+            const plateMat = new THREE.MeshStandardMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.55,
+                metalness: 0.5,
+                roughness: 0.2
+            });
+            const plate = new THREE.Mesh(plateGeo, plateMat);
+            plate.position.set(center.x, center.y + height / 2 + 0.15, center.z);
+            group.add(plate);
+
+            // Piston Rod
+            const rodHeight = 1.6;
+            const rodGeo = new THREE.CylinderGeometry(0.22, 0.22, rodHeight, 16);
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.3 });
+            const rod = new THREE.Mesh(rodGeo, rodMat);
+            rod.position.set(center.x, center.y + height / 2 + 0.28 + rodHeight / 2, center.z);
+            group.add(rod);
+
+            // External Downward Pressure Arrows (scales with pressureVal)
+            const arrowLen = THREE.MathUtils.clamp(0.9 + (pressureVal - 50) * 0.008, 0.8, 2.5);
+            const arrowOffsets = [
+                [-width * 0.28, -depth * 0.28],
+                [ width * 0.28, -depth * 0.28],
+                [-width * 0.28,  depth * 0.28],
+                [ width * 0.28,  depth * 0.28]
+            ];
+            arrowOffsets.forEach(([ox, oz]) => {
+                const dir = new THREE.Vector3(0, -1, 0);
+                const origin = new THREE.Vector3(center.x + ox, center.y + height / 2 + 0.35 + arrowLen, center.z + oz);
+                const arrow = new THREE.ArrowHelper(dir, origin, arrowLen, 0x10b981, 0.45, 0.3);
+                group.add(arrow);
+            });
+
+            return group;
+        }
+
+        // Spawn a glowing impact ripple on the container wall when a gas particle hits the wall
+        function spawnWallRipple(pos, normalAxis, dirSign) {
+            if (collisionRipples.length > 35) return; // Cap active ripples for performance
+
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xfbbf24,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mesh = new THREE.Mesh(ringGeo, mat);
+            mesh.position.copy(pos);
+
+            // Orient ring parallel to the hit container wall
+            if (normalAxis === 'x') {
+                mesh.rotation.y = Math.PI / 2;
+                mesh.position.x += dirSign * 0.32;
+            } else if (normalAxis === 'y') {
+                mesh.rotation.x = Math.PI / 2;
+                mesh.position.y += dirSign * 0.32;
+            } else if (normalAxis === 'z') {
+                mesh.position.z += dirSign * 0.32;
+            }
+
+            rippleGroup.add(mesh);
+            collisionRipples.push({ mesh, age: 0, maxAge: 0.42 });
+        }
+
+        function clearSceneGroups() {
+            while (mainGroup.children.length > 0) {
+                mainGroup.remove(mainGroup.children[0]);
+            }
+            while (bboxGroup.children.length > 0) {
+                bboxGroup.remove(bboxGroup.children[0]);
+            }
+            while (forceLinesGroup.children.length > 0) {
+                forceLinesGroup.remove(forceLinesGroup.children[0]);
+            }
+            while (rippleGroup.children.length > 0) {
+                const r = rippleGroup.children[0];
+                if (r.material) r.material.dispose();
+                rippleGroup.remove(r);
+            }
+            collisionRipples = [];
+            particles = [];
+        }
+
+        // ==========================================
+        // BUILD SCENE BASED ON ACTIVE MODULE & MODE
+        // ==========================================
+        function buildSceneForCurrentState() {
+            clearSceneGroups();
+            const compLabels = document.getElementById('comparison-labels');
+            const legendForce = document.getElementById('legend-force');
+            const legendCollision = document.getElementById('legend-collision');
+            compLabels.classList.add('hidden');
+            compLabels.classList.remove('flex');
+            legendForce.classList.add('hidden');
+            legendForce.classList.remove('flex');
+            legendCollision.classList.add('hidden');
+            legendCollision.classList.remove('flex');
+
+            if (currentModule === 1) {
+                buildModule1WaterState();
+            } else if (currentModule === 2) {
+                if (currentFactor === 'size') {
+                    buildModule2FactorSize();
+                } else if (currentFactor === 'count') {
+                    buildModule2FactorCount();
+                } else {
+                    buildModule2FactorSpacing();
+                }
+            } else if (currentModule === 3 || currentModule === 4) {
+                buildModule3InteractionScene();
+            }
+        }
+
+        // ------------------------------------------
+        // MODULE 1: Water Solid, Liquid, Gas (Supports single state OR 'all' 3 states simultaneously + Thermal Expansion!)
+        // ------------------------------------------
+        function buildModule1WaterState() {
+            const legendCollision = document.getElementById('legend-collision');
+
+            // Thermal expansion factor based on motionSpeed (0.5x to 2.5x, where 1.0x is standard)
+            const solidExpansion = 1 + (motionSpeed - 1.0) * 0.05;   // Solid expands slightly with T
+            const liquidExpansion = 1 + (motionSpeed - 1.0) * 0.09;  // Liquid expands moderately with T
+            const gasExpansion = 1 + (motionSpeed - 1.0) * 0.36;     // Gas expands dramatically with T!
+
+            if (waterState === 'all') {
+                // DISPLAY ALL 3 STATES OF WATER SIMULTANEOUSLY SIDE BY SIDE
+                legendCollision.classList.remove('hidden');
+                legendCollision.classList.add('flex');
+
+                const compLabels = document.getElementById('comparison-labels');
+                compLabels.classList.remove('hidden');
+                compLabels.classList.add('flex');
+
+                const solidVol = (1.09 * Math.pow(solidExpansion, 3)).toFixed(2);
+                const liquidVol = (1.00 * Math.pow(liquidExpansion, 3)).toFixed(2);
+                const gasVol = (18.5 * Math.pow(gasExpansion, 3)).toFixed(1);
+
+                document.getElementById('comp-label-1').innerHTML = `<div class="text-xs font-bold text-cyan-300">🧊 固态（冰）· 27个H₂O</div><div class="text-[11px] text-slate-300">规则排列 | 体积: ${solidVol} V₀</div>`;
+                document.getElementById('comp-label-2').innerHTML = `<div class="text-xs font-bold text-amber-300">💧 液态（水）· 27个H₂O</div><div class="text-[11px] text-slate-300">紧密聚集 | 体积: ${liquidVol} V₀</div>`;
+                document.getElementById('comp-label-3').innerHTML = `<div class="text-xs font-bold text-rose-300">☁️ 气态（水蒸气）· 27个H₂O</div><div class="text-[11px] text-slate-300">间隔极大 | 体积: ${gasVol} V₀</div>`;
+
+                updateHUD(
+                    '水（H₂O）的固、液、气三态同屏对比模型',
+                    '拖动右侧「调节温度」滑块，观察升温时微粒热运动加快、微粒间隔增大以及三态容器体积的热胀冷缩！',
+                    '各 27 个 H₂O', '0.14 nm (三态不变)', `随温度动态变化 (${motionSpeed.toFixed(1)}x)`, `气:${gasVol}V₀ > 固:${solidVol}V₀ > 液:${liquidVol}V₀`
+                );
+
+                const configs = [
+                    { mode: 'solid',  centerX: -8.6, spacing: 1.24 * solidExpansion,  boxSize: 3.9 * solidExpansion,  color: 0x38bdf8 },
+                    { mode: 'liquid', centerX: -2.5, spacing: 1.05 * liquidExpansion, boxSize: 3.35 * liquidExpansion, color: 0xf59e0b },
+                    { mode: 'gas',    centerX:  6.0, spacing: 2.35 * gasExpansion,    boxSize: 7.6 * gasExpansion,    color: 0xf43f5e }
+                ];
+
+                const nSide = 3; // 3x3x3 = 27 H2O molecules each
+                configs.forEach(cfg => {
+                    const offset = ((nSide - 1) * cfg.spacing) / 2;
+                    const halfB = cfg.boxSize / 2 - 0.35;
+
+                    for (let x = 0; x < nSide; x++) {
+                        for (let y = 0; y < nSide; y++) {
+                            for (let z = 0; z < nSide; z++) {
+                                const mol = createWaterMoleculeMesh(0.35);
+                                const bx = cfg.centerX + (x * cfg.spacing - offset);
+                                const by = y * cfg.spacing - offset;
+                                const bz = z * cfg.spacing - offset;
+                                const jitter = cfg.mode === 'solid' ? 0 : (cfg.mode === 'liquid' ? 0.2 : 0.65);
+                                mol.position.set(
+                                    bx + (Math.random() - 0.5) * jitter,
+                                    by + (Math.random() - 0.5) * jitter,
+                                    bz + (Math.random() - 0.5) * jitter
+                                );
+                                mol.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                                mainGroup.add(mol);
+
+                                particles.push({
+                                    mesh: mol,
+                                    basePos: new THREE.Vector3(bx, by, bz),
+                                    vel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2).normalize().multiplyScalar(cfg.mode === 'gas' ? 4.2 : 1.0),
+                                    rotVel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, 0),
+                                    phase: Math.random() * Math.PI * 2,
+                                    mode: cfg.mode,
+                                    showRipple: cfg.mode === 'gas',
+                                    bounds: {
+                                        minX: cfg.centerX - halfB, maxX: cfg.centerX + halfB,
+                                        minY: -halfB, maxY: halfB,
+                                        minZ: -halfB, maxZ: halfB
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    bboxGroup.add(createWireframeBox(cfg.boxSize, cfg.boxSize, cfg.boxSize, cfg.color, new THREE.Vector3(cfg.centerX, 0, 0)));
+                });
+
+                bboxGroup.visible = showBBox;
+                return;
+            }
+
+            // SINGLE STATE VIEW (64 H2O molecules) WITH TEMPERATURE-DRIVEN VOLUME EXPANSION
+            const gridCount = 4; // 4x4x4 = 64 molecules
+            let spacing = 1.25;
+            let boxSize = 5.4;
+            let stateMode = waterState;
+
+            if (waterState === 'solid') {
+                spacing = 1.32 * solidExpansion;
+                boxSize = 5.6 * solidExpansion;
+                const relV = (1.09 * Math.pow(solidExpansion, 3)).toFixed(2);
+                updateHUD(
+                    '固态水（冰）微观 3D 模型',
+                    '水分子通过氢键规则排列成晶格，升温时振幅加大、晶格轻微膨胀。',
+                    '64 个 H₂O', '0.14 nm (不变)', `规则间隔 (${(1.1 * solidExpansion).toFixed(2)}×2r)`, `${relV} V₀ (随温度微调)`
+                );
+            } else if (waterState === 'liquid') {
+                spacing = 1.12 * liquidExpansion;
+                boxSize = 4.9 * liquidExpansion;
+                const relV = (1.00 * Math.pow(liquidExpansion, 3)).toFixed(2);
+                updateHUD(
+                    '液态水（水）微观 3D 模型',
+                    '水分子紧密聚集在一起自由滑动，升温时热运动加快，分子间隔与体积略微膨胀。',
+                    '64 个 H₂O', '0.14 nm (不变)', `较小 (${(1.0 * liquidExpansion).toFixed(2)}×2r)`, `${relV} V₀ (随温度热胀冷缩)`
+                );
+            } else {
+                legendCollision.classList.remove('hidden');
+                legendCollision.classList.add('flex');
+                spacing = 2.75 * gasExpansion;
+                boxSize = 11.5 * gasExpansion;
+                const relV = (18.5 * Math.pow(gasExpansion, 3)).toFixed(1);
+                updateHUD(
+                    '气态水（水蒸气）微观 3D 模型',
+                    '水分子高速飞散并不断撞击器壁（金色闪光），升温使分子间隔与容器体积显著膨胀！',
+                    '64 个 H₂O', '0.14 nm (不变)', `极大 (${(8.5 * gasExpansion).toFixed(1)}×2r)`, `约 ${relV} V₀ (随温度显著膨胀)`
+                );
+            }
+
+            const offset = ((gridCount - 1) * spacing) / 2;
+
+            for (let x = 0; x < gridCount; x++) {
+                for (let y = 0; y < gridCount; y++) {
+                    for (let z = 0; z < gridCount; z++) {
+                        const mol = createWaterMoleculeMesh(0.38);
+                        const baseX = x * spacing - offset;
+                        const baseY = y * spacing - offset;
+                        const baseZ = z * spacing - offset;
+
+                        const jitter = stateMode === 'solid' ? 0 : (stateMode === 'liquid' ? 0.25 : 0.9);
+                        mol.position.set(
+                            baseX + (Math.random() - 0.5) * jitter,
+                            baseY + (Math.random() - 0.5) * jitter,
+                            baseZ + (Math.random() - 0.5) * jitter
+                        );
+                        mol.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                        mainGroup.add(mol);
+
+                        particles.push({
+                            mesh: mol,
+                            basePos: new THREE.Vector3(baseX, baseY, baseZ),
+                            vel: new THREE.Vector3(
+                                (Math.random() - 0.5) * 2,
+                                (Math.random() - 0.5) * 2,
+                                (Math.random() - 0.5) * 2
+                            ).normalize().multiplyScalar(stateMode === 'gas' ? 4.8 : 1.1),
+                            rotVel: new THREE.Vector3(
+                                (Math.random() - 0.5) * 2,
+                                (Math.random() - 0.5) * 2,
+                                (Math.random() - 0.5) * 2
+                            ),
+                            phase: Math.random() * Math.PI * 2,
+                            mode: stateMode,
+                            showRipple: stateMode === 'gas',
+                            bounds: { minX: -boxSize/2 + 0.4, maxX: boxSize/2 - 0.4, minY: -boxSize/2 + 0.4, maxY: boxSize/2 - 0.4, minZ: -boxSize/2 + 0.4, maxZ: boxSize/2 - 0.4 }
+                        });
+                    }
+                }
+            }
+
+            const bboxColor = stateMode === 'solid' ? 0x38bdf8 : (stateMode === 'liquid' ? 0x3b82f6 : 0xf43f5e);
+            bboxGroup.add(createWireframeBox(boxSize, boxSize, boxSize, bboxColor));
+            bboxGroup.visible = showBBox;
+        }
+
+        // ------------------------------------------
+        // MODULE 2 - FACTOR 1: Particle Size (Li, Na, K)
+        // ------------------------------------------
+        function buildModule2FactorSize() {
+            spherical.radius = 25;
+            updateCameraPosition();
+
+            const compLabels = document.getElementById('comparison-labels');
+            compLabels.classList.remove('hidden');
+            compLabels.classList.add('flex');
+            document.getElementById('comp-label-1').innerHTML = `<div class="text-xs font-bold text-cyan-300">锂 (Li) · 64个原子</div><div class="text-[11px] text-slate-300">r = 152 pm | V = 13.0 cm³/mol</div>`;
+            document.getElementById('comp-label-2').innerHTML = `<div class="text-xs font-bold text-amber-300">钠 (Na) · 64个原子</div><div class="text-[11px] text-slate-300">r = 186 pm | V = 23.7 cm³/mol</div>`;
+            document.getElementById('comp-label-3').innerHTML = `<div class="text-xs font-bold text-rose-300">钾 (K) · 64个原子</div><div class="text-[11px] text-slate-300">r = 227 pm | V = 45.3 cm³/mol</div>`;
+
+            updateHUD(
+                '因素① 微粒本身的大小：锂(Li)、钠(Na)、钾(K) 同数目对比',
+                '三种碱金属单质均含有 64 个原子且紧密排列，但因原子半径 K > Na > Li，宏观体积差异显著！',
+                '均为 64 个原子', 'Li < Na < K', '紧密接触 (d≈0)', 'V(Li) < V(Na) < V(K)'
+            );
+
+            const metals = [
+                { name: 'Li', radius: 0.30, centerX: -7.5, mat: matLi, color: 0x22d3ee },
+                { name: 'Na', radius: 0.40, centerX: -0.5, mat: matNa, color: 0xf59e0b },
+                { name: 'K',  radius: 0.52, centerX:  7.5, mat: matK,  color: 0xf43f5e }
+            ];
+
+            const gridCount = 4; // 4x4x4 = 64 atoms each
+
+            metals.forEach(m => {
+                const spacing = m.radius * 2.04; // Tightly packed metal crystal
+                const offset = ((gridCount - 1) * spacing) / 2;
+                const boxSize = gridCount * spacing;
+
+                for (let x = 0; x < gridCount; x++) {
+                    for (let y = 0; y < gridCount; y++) {
+                        for (let z = 0; z < gridCount; z++) {
+                            const atom = new THREE.Mesh(sphereGeoHigh, m.mat);
+                            atom.scale.setScalar(m.radius);
+                            const px = m.centerX + (x * spacing - offset);
+                            const py = y * spacing - offset;
+                            const pz = z * spacing - offset;
+                            atom.position.set(px, py, pz);
+                            mainGroup.add(atom);
+
+                            particles.push({
+                                mesh: atom,
+                                basePos: new THREE.Vector3(px, py, pz),
+                                phase: Math.random() * Math.PI * 2,
+                                mode: 'solid'
+                            });
+                        }
+                    }
+                }
+
+                bboxGroup.add(createWireframeBox(boxSize, boxSize, boxSize, m.color, new THREE.Vector3(m.centerX, 0, 0)));
+            });
+            bboxGroup.visible = showBBox;
+        }
+
+        // ------------------------------------------
+        // MODULE 2 - FACTOR 2: Particle Count (27 vs 64 vs 125 H2O Simultaneously or Single)
+        // ------------------------------------------
+        function buildModule2FactorCount() {
+            if (waterCountLevel === 'all') {
+                spherical.radius = 26;
+                updateCameraPosition();
+
+                const compLabels = document.getElementById('comparison-labels');
+                compLabels.classList.remove('hidden');
+                compLabels.classList.add('flex');
+                document.getElementById('comp-label-1').innerHTML = `<div class="text-xs font-bold text-cyan-300">27 个水分子 (3×3×3)</div><div class="text-[11px] text-slate-300">数目少 | 体积: 0.42 V₀</div>`;
+                document.getElementById('comp-label-2').innerHTML = `<div class="text-xs font-bold text-amber-300">64 个水分子 (4×4×4)</div><div class="text-[11px] text-slate-300">数目中 | 体积: 1.00 V₀</div>`;
+                document.getElementById('comp-label-3').innerHTML = `<div class="text-xs font-bold text-rose-300">125 个水分子 (5×5×5)</div><div class="text-[11px] text-slate-300">数目多 | 体积: 1.95 V₀</div>`;
+
+                updateHUD(
+                    '因素② 微粒的数目：27个 vs 64个 vs 125个水分子同屏对比',
+                    '保持水分子本身大小和分子间隔完全不变，同屏对比可见：水分子数目越多，所占宏观体积越大！',
+                    '27 vs 64 vs 125 个', '0.14 nm (完全相同)', '紧密间隔 (完全相同)', '0.42 V₀ < 1.00 V₀ < 1.95 V₀'
+                );
+
+                const groups = [
+                    { count: 27,  nSide: 3, centerX: -8.0, color: 0x22d3ee },
+                    { count: 64,  nSide: 4, centerX: -1.0, color: 0xf59e0b },
+                    { count: 125, nSide: 5, centerX:  7.2, color: 0xf43f5e }
+                ];
+                const spacing = 1.15;
+
+                groups.forEach(g => {
+                    const offset = ((g.nSide - 1) * spacing) / 2;
+                    const boxSize = g.nSide * spacing + 0.35;
+                    const halfB = boxSize / 2 - 0.3;
+
+                    for (let x = 0; x < g.nSide; x++) {
+                        for (let y = 0; y < g.nSide; y++) {
+                            for (let z = 0; z < g.nSide; z++) {
+                                const mol = createWaterMoleculeMesh(0.36);
+                                const bx = g.centerX + (x * spacing - offset);
+                                const by = y * spacing - offset;
+                                const bz = z * spacing - offset;
+                                mol.position.set(bx, by, bz);
+                                mol.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                                mainGroup.add(mol);
+
+                                particles.push({
+                                    mesh: mol,
+                                    basePos: new THREE.Vector3(bx, by, bz),
+                                    vel: new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)),
+                                    rotVel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, 0),
+                                    phase: Math.random() * Math.PI * 2,
+                                    mode: 'liquid',
+                                    bounds: { minX: g.centerX - halfB, maxX: g.centerX + halfB, minY: -halfB, maxY: halfB, minZ: -halfB, maxZ: halfB }
+                                });
+                            }
+                        }
+                    }
+
+                    bboxGroup.add(createWireframeBox(boxSize, boxSize, boxSize, g.color, new THREE.Vector3(g.centerX, 0, 0)));
+                });
+
+                bboxGroup.visible = showBBox;
+                return;
+            }
+
+            // Single count focused view
+            spherical.radius = 18;
+            updateCameraPosition();
+
+            const nSide = Math.round(Math.cbrt(waterCountLevel)); // 3, 4, or 5
+            const spacing = 1.15;
+            const offset = ((nSide - 1) * spacing) / 2;
+            const boxSize = nSide * spacing + 0.35;
+
+            const relVol = (waterCountLevel / 64).toFixed(2);
+            updateHUD(
+                `因素② 微粒的数目：${waterCountLevel} 个水分子（H₂O）`,
+                '保持水分子本身大小和分子间隔不变，当水分子数目增加时，所占据的总体积成正比增大。',
+                `${waterCountLevel} 个 H₂O`, '0.14 nm (不变)', '很小 (不变)', `${relVol} V₀`
+            );
+
+            for (let x = 0; x < nSide; x++) {
+                for (let y = 0; y < nSide; y++) {
+                    for (let z = 0; z < nSide; z++) {
+                        const mol = createWaterMoleculeMesh(0.38);
+                        const bx = x * spacing - offset;
+                        const by = y * spacing - offset;
+                        const bz = z * spacing - offset;
+                        mol.position.set(bx, by, bz);
+                        mol.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                        mainGroup.add(mol);
+
+                        particles.push({
+                            mesh: mol,
+                            basePos: new THREE.Vector3(bx, by, bz),
+                            vel: new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)),
+                            rotVel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, 0),
+                            phase: Math.random() * Math.PI * 2,
+                            mode: 'liquid',
+                            bounds: { minX: -boxSize/2+0.3, maxX: boxSize/2-0.3, minY: -boxSize/2+0.3, maxY: boxSize/2-0.3, minZ: -boxSize/2+0.3, maxZ: boxSize/2-0.3 }
+                        });
+                    }
+                }
+            }
+
+            bboxGroup.add(createWireframeBox(boxSize, boxSize, boxSize, 0xf59e0b));
+            bboxGroup.visible = showBBox;
+        }
+
+        // ------------------------------------------
+        // MODULE 2 - FACTOR 3: Spacing (Ice vs Water vs Steam side-by-side)
+        // ------------------------------------------
+        // MODULE 3 & 4: Intermolecular Forces, Microscopic Pressure Mechanism & Dominant Factors
+        // ------------------------------------------
+        function buildModule3InteractionScene() {
+            const legendForce = document.getElementById('legend-force');
+            const legendCollision = document.getElementById('legend-collision');
+            legendForce.classList.remove('hidden');
+            legendForce.classList.add('flex');
+            legendCollision.classList.remove('hidden');
+            legendCollision.classList.add('flex');
+
+            // Calculate dynamic gas box scale from Temperature (simTemp) and Pressure (simPres)
+            // Ideal gas relation V ~ T / P
+            const tpFactor = Math.cbrt((simTemp / 300) * (101 / simPres));
+            const gasBoxSize = THREE.MathUtils.clamp(8.2 * tpFactor, 5.0, 12.2);
+            const gasSpeed = 4.2 * Math.sqrt(simTemp / 300);
+
+            // Solid/Liquid thermal expansion is tiny
+            const condensedScale = 1 + (simTemp - 300) * 0.00025 - (simPres - 101) * 0.00008;
+            const condensedSpacing = 1.15 * condensedScale;
+            const condensedBoxSize = 3.6 * condensedScale;
+
+            // Update Microscopic Pressure Telemetry UI
+            const relImpulse = Math.sqrt(simTemp / 300).toFixed(2);
+            const estFreq = Math.round(42 * (simPres / 101) * Math.sqrt(300 / simTemp));
+            const freqEl = document.getElementById('pressure-freq-val');
+            const impEl = document.getElementById('pressure-impulse-val');
+            const balEl = document.getElementById('pressure-balance-val');
+            if (freqEl && impEl && balEl) {
+                freqEl.textContent = `约 ${estFreq} 次/秒·面`;
+                impEl.textContent = `${relImpulse} I₀ (随温度T变化)`;
+                balEl.textContent = `P内 = P外 (${simPres} kPa)`;
+            }
+
+            if (interactionView === 'both') {
+                spherical.radius = 25;
+                updateCameraPosition();
+
+                const compLabels = document.getElementById('comparison-labels');
+                compLabels.classList.remove('hidden');
+                compLabels.classList.add('flex');
+                document.getElementById('comp-label-1').innerHTML = `<div class="text-xs font-bold text-cyan-300">固/液态 (27个微粒)</div><div class="text-[11px] text-amber-300">相互作用强(金色连线) · 极难压缩</div>`;
+                document.getElementById('comp-label-2').innerHTML = `<div class="text-xs font-bold text-emerald-300">外部条件与活塞</div><div class="text-[11px] text-slate-300">T=${simTemp}K, P=${simPres}kPa</div>`;
+                document.getElementById('comp-label-3').innerHTML = `<div class="text-xs font-bold text-rose-300">气态 (27个微粒 + 活塞)</div><div class="text-[11px] text-amber-200">分子撞击器壁产生压强 · 易随T/P改变体积</div>`;
+
+                updateHUD(
+                    '固/液态 vs 气态：微粒间相互作用与微观压强机制',
+                    '右侧气体分子高速撞击器壁（触发金色光环）产生内部压强以支撑顶部活塞；升温或降压使气体体积显著膨胀，而左侧固/液态受微粒间强作用力束缚，体积几乎不变！',
+                    '各 27 个 H₂O', '0.14 nm (不变)', `气体 d ≈ ${(gasBoxSize/3.2).toFixed(1)}×2r`, `气体V = ${(Math.pow(gasBoxSize/condensedBoxSize, 3)).toFixed(1)} 倍液态V`
+                );
+
+                // 1. Build Condensed Phase on Left (x = -6.5)
+                const leftX = -6.5;
+                const nSide = 3;
+                const offsetC = ((nSide - 1) * condensedSpacing) / 2;
+                for (let x = 0; x < nSide; x++) {
+                    for (let y = 0; y < nSide; y++) {
+                        for (let z = 0; z < nSide; z++) {
+                            const mol = createWaterMoleculeMesh(0.36);
+                            const bx = leftX + (x * condensedSpacing - offsetC);
+                            const by = y * condensedSpacing - offsetC;
+                            const bz = z * condensedSpacing - offsetC;
+                            mol.position.set(bx, by, bz);
+                            mainGroup.add(mol);
+
+                            particles.push({
+                                mesh: mol,
+                                basePos: new THREE.Vector3(bx, by, bz),
+                                phase: Math.random() * Math.PI * 2,
+                                mode: 'solid',
+                                hasForceBonds: true
+                            });
+                        }
+                    }
+                }
+                const leftCenter = new THREE.Vector3(leftX, 0, 0);
+                bboxGroup.add(createWireframeBox(condensedBoxSize, condensedBoxSize, condensedBoxSize, 0x38bdf8, leftCenter));
+                bboxGroup.add(createPistonOverlay(condensedBoxSize, condensedBoxSize, condensedBoxSize, leftCenter, simPres));
+
+                // 2. Build Gas Phase on Right (x = +4.2)
+                const rightX = 4.2;
+                const halfG = gasBoxSize / 2 - 0.4;
+                for (let i = 0; i < 27; i++) {
+                    const mol = createWaterMoleculeMesh(0.36);
+                    const gx = rightX + (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    const gy = (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    const gz = (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    mol.position.set(gx, gy, gz);
+                    mainGroup.add(mol);
+
+                    particles.push({
+                        mesh: mol,
+                        basePos: new THREE.Vector3(gx, gy, gz),
+                        vel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2).normalize().multiplyScalar(gasSpeed),
+                        rotVel: new THREE.Vector3((Math.random()-0.5)*3, (Math.random()-0.5)*3, 0),
+                        phase: Math.random() * Math.PI * 2,
+                        mode: 'gas',
+                        showRipple: true,
+                        bounds: {
+                            minX: rightX - halfG, maxX: rightX + halfG,
+                            minY: -halfG, maxY: halfG,
+                            minZ: -halfG, maxZ: halfG
+                        }
+                    });
+                }
+                const rightCenter = new THREE.Vector3(rightX, 0, 0);
+                bboxGroup.add(createWireframeBox(gasBoxSize, gasBoxSize, gasBoxSize, 0xf43f5e, rightCenter));
+                bboxGroup.add(createPistonOverlay(gasBoxSize, gasBoxSize, gasBoxSize, rightCenter, simPres));
+
+            } else {
+                // Focus on Gas Only with Piston & Wall Collision Ripples
+                spherical.radius = 21;
+                updateCameraPosition();
+
+                updateHUD(
+                    `探秘气体压强与体积（T = ${simTemp} K, P = ${simPres} kPa）`,
+                    '观察器壁上的金色闪光波纹：每个水蒸气分子撞击器壁都会产生冲量，无数次撞击汇成气体压强！调节 T 和 P 观察顶部活塞移动与分子间隔变化。',
+                    '45 个气体分子', 'r ≪ d (本身大小可忽略)', `随 T、P 显著改变`, `相对体积 ${(Math.pow(tpFactor, 3)).toFixed(2)} V₀`
+                );
+
+                const halfG = gasBoxSize / 2 - 0.4;
+                for (let i = 0; i < 45; i++) {
+                    const mol = createWaterMoleculeMesh(0.36);
+                    const gx = (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    const gy = (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    const gz = (Math.random() - 0.5) * (gasBoxSize - 1.0);
+                    mol.position.set(gx, gy, gz);
+                    mainGroup.add(mol);
+
+                    particles.push({
+                        mesh: mol,
+                        basePos: new THREE.Vector3(gx, gy, gz),
+                        vel: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2).normalize().multiplyScalar(gasSpeed),
+                        rotVel: new THREE.Vector3((Math.random()-0.5)*3, (Math.random()-0.5)*3, 0),
+                        phase: Math.random() * Math.PI * 2,
+                        mode: 'gas',
+                        showRipple: true,
+                        bounds: {
+                            minX: -halfG, maxX: halfG,
+                            minY: -halfG, maxY: halfG,
+                            minZ: -halfG, maxZ: halfG
+                        }
+                    });
+                }
+                const centerOrigin = new THREE.Vector3(0, 0, 0);
+                bboxGroup.add(createWireframeBox(gasBoxSize, gasBoxSize, gasBoxSize, 0xf43f5e, centerOrigin));
+                bboxGroup.add(createPistonOverlay(gasBoxSize, gasBoxSize, gasBoxSize, centerOrigin, simPres));
+            }
+            bboxGroup.visible = showBBox;
+        }
+
+        // ==========================================
+        // ANIMATION LOOP (THERMAL MOTION, WALL IMPACTS & FORCE BONDS)
+        // ==========================================
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Update Particles
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+
+                if (p.mode === 'solid') {
+                    // Vibrate around lattice position
+                    const amp = 0.055 * motionSpeed;
+                    const freq = 9.0 * motionSpeed;
+                    p.mesh.position.x = p.basePos.x + Math.sin(elapsed * freq + p.phase) * amp;
+                    p.mesh.position.y = p.basePos.y + Math.cos(elapsed * freq * 1.1 + p.phase) * amp;
+                    p.mesh.position.z = p.basePos.z + Math.sin(elapsed * freq * 0.9 - p.phase) * amp;
+                } else if (p.mode === 'liquid') {
+                    // Gentle wandering & tumbling around base neighborhood
+                    const amp = 0.22 * motionSpeed;
+                    const freq = 3.2 * motionSpeed;
+                    p.mesh.position.x = p.basePos.x + Math.sin(elapsed * freq + p.phase) * amp;
+                    p.mesh.position.y = p.basePos.y + Math.cos(elapsed * freq * 0.8 + p.phase) * amp;
+                    p.mesh.position.z = p.basePos.z + Math.sin(elapsed * freq * 1.2 - p.phase) * amp;
+                    if (p.rotVel) {
+                        p.mesh.rotation.x += p.rotVel.x * dt * motionSpeed;
+                        p.mesh.rotation.y += p.rotVel.y * dt * motionSpeed;
+                    }
+                } else if (p.mode === 'gas' && p.bounds) {
+                    // High speed linear flight + elastic container wall bounce + Wall Impact Flash Ripples
+                    const speedMultiplier = (currentModule === 1) ? motionSpeed : 1.0;
+                    p.mesh.position.addScaledVector(p.vel, dt * speedMultiplier);
+                    if (p.rotVel) {
+                        p.mesh.rotation.x += p.rotVel.x * dt * speedMultiplier;
+                        p.mesh.rotation.y += p.rotVel.y * dt * speedMultiplier;
+                    }
+
+                    const b = p.bounds;
+                    if (p.mesh.position.x < b.minX) {
+                        p.mesh.position.x = b.minX; p.vel.x *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'x', -1);
+                    }
+                    if (p.mesh.position.x > b.maxX) {
+                        p.mesh.position.x = b.maxX; p.vel.x *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'x', 1);
+                    }
+                    if (p.mesh.position.y < b.minY) {
+                        p.mesh.position.y = b.minY; p.vel.y *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'y', -1);
+                    }
+                    if (p.mesh.position.y > b.maxY) {
+                        p.mesh.position.y = b.maxY; p.vel.y *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'y', 1);
+                    }
+                    if (p.mesh.position.z < b.minZ) {
+                        p.mesh.position.z = b.minZ; p.vel.z *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'z', -1);
+                    }
+                    if (p.mesh.position.z > b.maxZ) {
+                        p.mesh.position.z = b.maxZ; p.vel.z *= -1;
+                        if (p.showRipple) spawnWallRipple(p.mesh.position, 'z', 1);
+                    }
+                }
+            }
+
+            // Animate expanding & fading Wall Impact Ripples
+            for (let i = collisionRipples.length - 1; i >= 0; i--) {
+                const r = collisionRipples[i];
+                r.age += dt;
+                if (r.age >= r.maxAge) {
+                    rippleGroup.remove(r.mesh);
+                    r.mesh.material.dispose();
+                    collisionRipples.splice(i, 1);
+                } else {
+                    const progress = r.age / r.maxAge;
+                    const scale = 1.0 + progress * 2.6;
+                    r.mesh.scale.setScalar(scale);
+                    r.mesh.material.opacity = (1.0 - progress) * 0.85;
+                }
+            }
+
+            // Update Intermolecular Force Lines in Module 3/4
+            if (currentModule === 3 || currentModule === 4) {
+                updateIntermolecularForceLines();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function updateIntermolecularForceLines() {
+            while (forceLinesGroup.children.length > 0) {
+                const line = forceLinesGroup.children[0];
+                line.geometry.dispose();
+                forceLinesGroup.remove(line);
+            }
+
+            const points = [];
+            const condensedParticles = particles.filter(p => p.hasForceBonds);
+            const cutoff = 1.45;
+
+            for (let i = 0; i < condensedParticles.length; i++) {
+                for (let j = i + 1; j < condensedParticles.length; j++) {
+                    const p1 = condensedParticles[i].mesh.position;
+                    const p2 = condensedParticles[j].mesh.position;
+                    if (p1.distanceTo(p2) < cutoff) {
+                        points.push(p1.clone(), p2.clone());
+                    }
+                }
+            }
+
+            if (points.length > 0) {
+                const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                const lineSegments = new THREE.LineSegments(lineGeo, matForceLine);
+                forceLinesGroup.add(lineSegments);
+            }
+        }
+
+        // ==========================================
+        // UI INTERACTION HANDLERS
+        // ==========================================
+        function switchModule(modNum) {
+            currentModule = modNum;
+
+            // Update Top Nav Tab Styling
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById(`tab-${i}`);
+                const panel = document.getElementById(`panel-module-${i}`);
+                if (i === modNum) {
+                    btn.className = 'nav-tab-active px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5';
+                    panel.classList.remove('hidden');
+                    panel.classList.add('flex');
+                } else {
+                    btn.className = 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold border border-slate-700 transition-all flex items-center gap-1.5';
+                    panel.classList.add('hidden');
+                    panel.classList.remove('flex');
+                }
+            }
+
+            resetCamera();
+            buildSceneForCurrentState();
+        }
+
+        function setWaterState(state) {
+            waterState = state;
+            const states = ['solid', 'liquid', 'gas', 'all'];
+            states.forEach(s => {
+                const btn = document.getElementById(`btn-state-${s}`);
+                if (!btn) return;
+                if (s === state) {
+                    btn.className = 'sub-btn-active p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all';
+                } else {
+                    btn.className = 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 transition-all';
+                }
+            });
+
+            if (state === 'all') {
+                spherical.radius = 27;
+            } else if (state === 'gas') {
+                spherical.radius = 24;
+            } else {
+                spherical.radius = 16;
+            }
+            updateCameraPosition();
+            buildSceneForCurrentState();
+        }
+
+        function updateMotionSpeed(val) {
+            motionSpeed = parseFloat(val);
+            // Rebuild scene dynamically so container volume & intermolecular spacing expand/contract with temperature!
+            buildSceneForCurrentState();
+            const volText = document.getElementById('metric-volume').textContent;
+            document.getElementById('temp-label').textContent = `${motionSpeed.toFixed(1)}x 速率 (${volText})`;
+        }
+
+        function highlightJuniorTrait(traitIdx) {
+            for (let i = 1; i <= 3; i++) {
+                const card = document.getElementById(`trait-card-${i}`);
+                if (i === traitIdx) {
+                    card.className = 'p-3 rounded-xl bg-blue-950/60 border-2 border-blue-400 cursor-pointer transition-all pulse-badge';
+                } else {
+                    card.className = 'p-3 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700 cursor-pointer transition-all';
+                }
+            }
+
+            // Link Junior High Trait to live 3D visual demonstration
+            if (traitIdx === 1) {
+                spherical.radius = 12; // Zoom in to inspect single H2O structure
+                updateCameraPosition();
+            } else if (traitIdx === 2) {
+                motionSpeed = 2.0;
+                document.getElementById('slider-motion').value = 2.0;
+                updateMotionSpeed(2.0);
+            } else if (traitIdx === 3) {
+                showBBox = true;
+                setWaterState('gas');
+            }
+        }
+
+        function setFactorExperiment(factor) {
+            currentFactor = factor;
+            const factors = ['size', 'count', 'spacing'];
+            factors.forEach(f => {
+                const btn = document.getElementById(`btn-factor-${f}`);
+                const detail = document.getElementById(`factor-detail-${f}`);
+                if (f === factor) {
+                    btn.className = 'sub-btn-active p-2.5 rounded-xl border border-slate-700 text-center transition-all';
+                    detail.classList.remove('hidden');
+                } else {
+                    btn.className = 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-center transition-all';
+                    detail.classList.add('hidden');
+                }
+            });
+
+            buildSceneForCurrentState();
+        }
+
+        function setWaterCountLevel(count) {
+            waterCountLevel = count;
+            ['all', 27, 64, 125].forEach(c => {
+                const btn = document.getElementById(`btn-count-${c}`);
+                if (!btn) return;
+                if (c === count) {
+                    btn.className = 'sub-btn-active p-2 rounded-lg border border-amber-400 text-center transition';
+                } else {
+                    btn.className = 'p-2 rounded-lg bg-slate-900 border border-slate-700 hover:border-amber-400 text-center transition';
+                }
+            });
+            buildSceneForCurrentState();
+        }
+
+        function setInteractionView(viewMode) {
+            interactionView = viewMode;
+            const btnBoth = document.getElementById('btn-inter-both');
+            const btnGas = document.getElementById('btn-inter-gas');
+            if (viewMode === 'both') {
+                btnBoth.className = 'sub-btn-active p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition';
+                btnGas.className = 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition';
+            } else {
+                btnGas.className = 'sub-btn-active p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition';
+                btnBoth.className = 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-700 text-xs font-bold transition';
+            }
+            buildSceneForCurrentState();
+        }
+
+        function updateTP() {
+            simTemp = parseInt(document.getElementById('slider-tp-temp').value, 10);
+            simPres = parseInt(document.getElementById('slider-tp-pres').value, 10);
+            document.getElementById('tp-temp-val').textContent = `${simTemp} K`;
+            document.getElementById('tp-pres-val').textContent = `${simPres} kPa`;
+            buildSceneForCurrentState();
+        }
+
+        function resetTP() {
+            document.getElementById('slider-tp-temp').value = 300;
+            document.getElementById('slider-tp-pres').value = 101;
+            updateTP();
+        }
+
+        function checkQuiz(qNum, choice, btnEl) {
+            const correctAnswers = { 1: 'A', 2: 'B', 3: 'B' };
+            const explanations = {
+                1: {
+                    A: '✅ 回答正确！固体金属原子紧密排列，原子数目相同时，钾原子半径 > 钠原子半径 > 锂原子半径，因此微粒本身的大小决定了它们的体积差异。',
+                    B: '❌ 再想想看：金属原子紧密排列，数目相同时，是因为钾、钠、锂原子本身的半径大小不同导致体积不同哦。'
+                },
+                2: {
+                    B: '✅ 回答正确！水在三态变化时，水分子本身的数目和大小均不改变，变成水蒸气后分子间间隔扩大了十倍以上，导致体积暴增！',
+                    A: '❌ 常见误区：水分子本身的大小在物理状态变化中是不会膨胀变大的，变大的是水分子之间的间隔！'
+                },
+                3: {
+                    B: '✅ 回答正确！气体分子间的间隔远远大于分子本身大小（d ≫ r），因此分子间隔是决定一定数目气体体积的主要因素。',
+                    A: '❌ 再想想看：气体分子本身的大小相对于巨大的分子间隔可以忽略不计，主要决定因素是分子之间的平均间隔。'
+                }
+            };
+
+            const fbEl = document.getElementById(`quiz-fb-${qNum}`);
+            fbEl.classList.remove('hidden');
+
+            if (choice === correctAnswers[qNum]) {
+                quizAnswered[qNum] = true;
+                fbEl.className = 'text-[11px] pt-1 text-emerald-400 font-medium';
+                btnEl.className = 'p-2 rounded-lg bg-emerald-950/80 border border-emerald-400 text-emerald-200 text-left transition';
+            } else {
+                fbEl.className = 'text-[11px] pt-1 text-rose-400 font-medium';
+                btnEl.className = 'p-2 rounded-lg bg-rose-950/80 border border-rose-400 text-rose-200 text-left transition';
+            }
+            fbEl.textContent = explanations[qNum][choice];
+
+            const score = Object.values(quizAnswered).filter(Boolean).length;
+            document.getElementById('quiz-score').textContent = `进度：${score} / 3`;
+        }
+
+        function updateHUD(title, subtitle, countTxt, radiusTxt, spacingTxt, volTxt) {
+            document.getElementById('hud-title').textContent = title;
+            document.getElementById('hud-subtitle').textContent = subtitle;
+            document.getElementById('metric-count').textContent = countTxt;
+            document.getElementById('metric-radius').textContent = radiusTxt;
+            document.getElementById('metric-spacing').textContent = spacingTxt;
+            document.getElementById('metric-volume').textContent = volTxt;
+        }
+
+        function toggleBoundingBox() {
+            showBBox = !showBBox;
+            if (bboxGroup) bboxGroup.visible = showBBox;
+        }
+
+        // ==========================================
+        // CAMERA CONTROLS & RESIZE
+        // ==========================================
+        function updateCameraPosition() {
+            if (!camera) return;
+            camera.position.x = cameraTarget.x + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+            camera.position.y = cameraTarget.y + spherical.radius * Math.cos(spherical.phi);
+            camera.position.z = cameraTarget.z + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+            camera.lookAt(cameraTarget);
+        }
+
+        function resetCamera() {
+            spherical = {
+                radius: (currentModule === 1 && waterState === 'all') || currentModule >= 2 ? 26 : 18,
+                theta: 0.42,
+                phi: 1.18
+            };
+            cameraTarget.set(0, 0, 0);
+            updateCameraPosition();
+        }
+
+        function bindCameraEvents(domEl) {
+            domEl.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                prevMouse = { x: e.clientX, y: e.clientY };
+
+                spherical.theta -= dx * 0.007;
+                spherical.phi = THREE.MathUtils.clamp(spherical.phi - dy * 0.007, 0.25, Math.PI - 0.25);
+                updateCameraPosition();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            domEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                spherical.radius = THREE.MathUtils.clamp(spherical.radius + e.deltaY * 0.015, 7, 45);
+                updateCameraPosition();
+            }, { passive: false });
+
+            // Touch Support for Tablets & Mobile Phones
+            domEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }, { passive: true });
+
+            domEl.addEventListener('touchmove', (e) => {
+                if (!isDragging || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - prevMouse.x;
+                const dy = e.touches[0].clientY - prevMouse.y;
+                prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+                spherical.theta -= dx * 0.007;
+                spherical.phi = THREE.MathUtils.clamp(spherical.phi - dy * 0.007, 0.25, Math.PI - 0.25);
+                updateCameraPosition();
+            }, { passive: true });
+
+            domEl.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer || !camera) return;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+
+        // Start 3D simulation on window load
+        window.onload = function () {
+            initThreeJS();
+            animate();
+        };
+    </script>
+</body>
+</html>
